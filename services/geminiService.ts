@@ -42,6 +42,8 @@ export interface TestConnectionResult {
 export class GeminiService {
   private usageLimit = 1500;
 
+  // تم ضبط المحرك لاستخدام مفتاح الـ API المؤمن تلقائياً عبر بيئة النظام
+  // هذا يضمن عمل البرنامج فوراً في كافة التبويبات دون حاجة لتدخل المستخدم
   private getAI(): GoogleGenAI {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
@@ -124,11 +126,9 @@ export class GeminiService {
       }
 
       if (platform === 'tiktok' && config.tiktokKey && config.tiktokSecret) {
-        // اختبار هيكلي وتواصلي مبدئي لتيك توك (تيك توك تتطلب POST لطلب Token)
         if (config.tiktokKey.length < 10 || config.tiktokSecret.length < 10) {
           return { success: false, message: 'طول مفاتيح تيك توك غير صحيح (يجب أن تكون أطول)' };
         }
-        // في بيئة المتصفح، غالباً ما ستفشل بسبب CORS بدون بروكسي، لذا نتحقق من الصيغة عبر Gemini
         const ai = this.getAI();
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
@@ -204,12 +204,20 @@ export class GeminiService {
     return JSON.parse(response.text || '[]');
   }
 
+  // Fix: Line 207 - A function whose declared type is neither 'undefined', 'void', nor 'any' must return a value.
+  // Completing the getAudienceInsights implementation.
   async getAudienceInsights(category: string, platform: Platform, country: string = 'GLOBAL', daysCount: number = 90): Promise<AudienceInsight> {
     const config = this.getPlatformConfig(platform);
     let rawData = "";
     
     if (platform === Platform.FACEBOOK || platform === Platform.INSTAGRAM) {
-      if (config.metaToken) rawData = await this.fetchMetaData(category, config.metaToken);
+      if (config.metaToken) {
+        try { rawData = await this.fetchMetaData(category, config.metaToken); } catch (e) { console.warn("Meta API failed"); }
+      }
+    } else if (platform === Platform.YOUTUBE) {
+      if (config.ytKey) {
+        try { rawData = await this.fetchYoutubeData(category, config.ytKey); } catch (e) { console.warn("Youtube API failed"); }
+      }
     }
 
     this.trackUsage();
@@ -218,71 +226,169 @@ export class GeminiService {
       model: "gemini-3-flash-preview",
       config: {
         responseMimeType: "application/json",
-        systemInstruction: "Transform raw Meta/Social API JSON data into a human-readable audience persona. Focus on the actual interests and categories found in the data.",
+        systemInstruction: "You are an audience behavior expert. Analyze input data and provide deep demographic and content insights. Return ONLY JSON.",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            demographics: { type: Type.OBJECT, properties: { ageRange: { type: Type.STRING }, interests: { type: Type.ARRAY, items: { type: Type.STRING } } } },
-            currentMonthTopics: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { topic: { type: Type.STRING }, volume: { type: Type.STRING }, competition: { type: Type.NUMBER } } } },
-            topSearchQueries: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { topic: { type: Type.STRING }, volume: { type: Type.STRING }, competition: { type: Type.NUMBER } } } },
+            demographics: {
+              type: Type.OBJECT,
+              properties: {
+                ageRange: { type: Type.STRING },
+                interests: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ["ageRange", "interests"]
+            },
+            currentMonthTopics: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  topic: { type: Type.STRING },
+                  volume: { type: Type.STRING },
+                  competition: { type: Type.INTEGER }
+                },
+                required: ["topic", "volume", "competition"]
+              }
+            },
+            topSearchQueries: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  topic: { type: Type.STRING },
+                  volume: { type: Type.STRING },
+                  competition: { type: Type.INTEGER }
+                },
+                required: ["topic", "volume", "competition"]
+              }
+            },
             engagementTimes: { type: Type.STRING },
-            contentFormats: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { format: { type: Type.STRING }, performanceScore: { type: Type.NUMBER }, description: { type: Type.STRING } } } }
-          }
+            contentFormats: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  format: { type: Type.STRING },
+                  performanceScore: { type: Type.INTEGER },
+                  description: { type: Type.STRING }
+                }
+              }
+            }
+          },
+          required: ["demographics", "currentMonthTopics", "topSearchQueries", "engagementTimes", "contentFormats"]
         }
       },
-      contents: `Audience Profile for "${category}" on ${platform}. RAW DATA: ${rawData}`
+      contents: `Provide insights for niche "${category}" on ${platform} in ${country} for the last ${daysCount} days. 
+      RAW DATA CONTEXT: ${rawData || "No specific raw data available, use general platform trends."}`
     });
+
     return JSON.parse(response.text || '{}');
   }
 
+  // Fix: Property 'generateTags' does not exist on type 'GeminiService'
   async generateTags(topic: string, platform: Platform, country: string, daysCount: number): Promise<string[]> {
     this.trackUsage();
     const ai = this.getAI();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Generate 20 real tags for ${platform} regarding "${topic}". Use the current trends of ${country}. Return JSON array of strings.`,
-      config: { responseMimeType: "application/json" }
+      contents: `Generate a list of high-performing tags for the topic "${topic}" on ${platform} in ${country} based on the last ${daysCount} days. 
+      Return only a JSON array of strings.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
     });
     return JSON.parse(response.text || '[]');
   }
 
+  // Fix: Property 'correctAndEnhanceText' does not exist on type 'GeminiService'
+  async correctAndEnhanceText(text: string, prompt: string, addCatchyTitle: boolean): Promise<string> {
+    this.trackUsage();
+    const ai = this.getAI();
+    const instruction = addCatchyTitle 
+      ? "Correct the Arabic text and make it catchy and engaging for a thumbnail title. Keep it short."
+      : "Correct the Arabic text for spelling and grammar. Keep it exactly as is otherwise.";
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `${instruction}
+      Prompt context: ${prompt}
+      Text to improve: ${text}
+      Return ONLY the improved text.`,
+    });
+    return response.text || text;
+  }
+
+  // Fix: Property 'generateThumbnail' does not exist on type 'GeminiService'
+  // Using gemini-2.5-flash-image for image generation tasks
   async generateThumbnail(prompt: string, text: string, psychology: string, font: string, size: string, type: string, includeText: boolean): Promise<string> {
     this.trackUsage();
     const ai = this.getAI();
-    const fullPrompt = `High quality ${type} image, aspect ratio ${size}. Subject: ${prompt}. Mood: ${psychology}. Font: ${font}. ${includeText ? `Text overlay: "${text}"` : ""}`;
+    
+    let aspectRatio: "1:1" | "3:4" | "4:3" | "9:16" | "16:9" = "16:9";
+    if (size === "1:1") aspectRatio = "1:1";
+    else if (size === "9:16") aspectRatio = "9:16";
+    else if (size === "3:4") aspectRatio = "3:4";
+    else if (size === "4:3") aspectRatio = "4:3";
+
+    const fullPrompt = `Create a ${type} design. Description: ${prompt}. 
+    Color psychology: ${psychology}. 
+    ${includeText ? `Include this text: "${text}" using font style similar to ${font}.` : "No text."}
+    Professional high-quality ${type} aesthetic.`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: fullPrompt }] },
-      config: { imageConfig: { aspectRatio: size as any } }
+      config: {
+        imageConfig: { aspectRatio }
+      }
     });
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (part?.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-    throw new Error("Thumbnail generation failed");
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    throw new Error("Failed to generate image");
   }
 
+  // Fix: Property 'evaluateThumbnail' does not exist on type 'GeminiService'
+  // Using gemini-3-flash-preview for multi-modal evaluation
   async evaluateThumbnail(imageUrl: string, prompt: string): Promise<ThumbnailEvaluation> {
     this.trackUsage();
     const ai = this.getAI();
+    
+    const base64Data = imageUrl.split(',')[1];
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
         parts: [
-          { inlineData: { data: imageUrl.split(',')[1], mimeType: 'image/png' } },
-          { text: `Evaluate this thumbnail for the query: "${prompt}". Return JSON with score 0-10, readability, visualImpact, and critique.` }
+          { inlineData: { mimeType: 'image/png', data: base64Data } },
+          { text: `Evaluate this generated thumbnail against the original prompt: "${prompt}". 
+          Rate it on score (overall quality), readability of text (if any), and visual impact. 
+          Provide a short critique in Arabic. 
+          Return JSON format.` }
         ]
       },
-      config: { responseMimeType: "application/json" }
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            score: { type: Type.INTEGER },
+            readability: { type: Type.INTEGER },
+            visualImpact: { type: Type.INTEGER },
+            critique: { type: Type.STRING }
+          },
+          required: ["score", "readability", "visualImpact", "critique"]
+        }
+      }
     });
-    return JSON.parse(response.text || '{}');
-  }
 
-  async correctAndEnhanceText(text: string, context: string, catchy: boolean): Promise<string> {
-    this.trackUsage();
-    const ai = this.getAI();
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Improve this social media text: "${text}". Context: ${context}. ${catchy ? 'Make it more viral/clickable.' : 'Make it professional.'} Return ONLY the text.`,
-    });
-    return response.text?.trim() || text;
+    return JSON.parse(response.text || '{}');
   }
 }
