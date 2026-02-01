@@ -1,0 +1,7 @@
+{
+  "name": "SEO & Thumbnail Master",
+  "description": "منصة متكاملة لتحليل الكلمات المفتاحية، توليد العلامات (Tags)، وتصميم صور مصغرة لليوتيوب باستخدام الذكاء الاصطناعي.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
