@@ -29,6 +29,15 @@ export interface KeywordMetric {
   productLink?: string;
 }
 
+export interface CompetitorData {
+  platform: Platform;
+  competitorName: string;
+  topKeywords: string[];
+  engagementRate: number;
+  recentViralCount: number;
+  lastUpdated: string;
+}
+
 export interface TagSuggestion {
   tag: string;
   relevance: number;
