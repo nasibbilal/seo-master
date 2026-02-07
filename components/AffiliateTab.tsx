@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Platform, KeywordMetric, ThemeColor, COUNTRIES } from '../types';
 import { GeminiService } from '../services/geminiService';
@@ -23,7 +24,8 @@ const AffiliateTab: React.FC<AffiliateTabProps> = ({ theme, daysCount }) => {
     setLoading(true);
     setData([]);
     try {
-      const results = await gemini.analyzeKeywords(query, selectedPlatform, country, daysCount);
+      /* Fixed: Removed extra argument 'daysCount' which analyzeKeywords does not support */
+      const results = await gemini.analyzeKeywords(query, selectedPlatform, country);
       setData(results);
     } catch (error) {
       console.error(error);

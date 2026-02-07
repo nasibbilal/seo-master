@@ -1,7 +1,8 @@
 
+
 import React, { useState } from 'react';
-import { GeminiService, AudienceInsight } from '../services/geminiService';
-import { ThemeColor, Platform, COUNTRIES } from '../types';
+import { GeminiService } from '../services/geminiService';
+import { ThemeColor, Platform, COUNTRIES, AudienceInsight } from '../types';
 
 const gemini = new GeminiService();
 
@@ -22,6 +23,7 @@ const AudienceTab: React.FC<AudienceTabProps> = ({ theme, daysCount }) => {
     setLoading(true);
     setInsight(null);
     try {
+      /* Fixed: analyzeKeywords no longer used, getAudienceInsights implemented in geminiService */
       const result = await gemini.getAudienceInsights(category, platform, country, daysCount);
       setInsight(result);
     } catch (error) {

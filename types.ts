@@ -15,32 +15,80 @@ export enum Platform {
 
 export type ThemeColor = 'red' | 'blue' | 'purple';
 
+export interface VideoBlueprint {
+  magneticTitle: string;
+  hook: string;
+  algorithmImpact: string;
+  targetQuestions: string[];
+}
+
+export interface CommentGapInsight {
+  competitorId: string;
+  platform: Platform;
+  recurringQuestions: string[];
+  unmetNeeds: string[];
+  blueprint: VideoBlueprint;
+}
+
+export interface ReportSettings {
+  enabled: boolean;
+  email: string;
+  scheduleDay: string;
+  lastSent?: string;
+}
+
+export interface ChannelMetadata {
+  id: string;
+  name: string;
+  youtubeId?: string;
+  youtubeKey?: string;
+  metaToken?: string;
+  tiktokSecret?: string;
+  reportSettings?: ReportSettings;
+}
+
 export interface KeywordMetric {
   keyword: string;
-  searchVolume: string; // High, Medium, Low
-  competition: number; // 0-100
-  strength: number; // 0-100
+  searchVolume: string;
+  competition: number;
+  strength: number;
   trend: 'up' | 'down' | 'stable';
-  googleScore?: number; // 0-100
-  youtubeScore?: number; // 0-100
+  googleScore?: number;
+  youtubeScore?: number;
   sourcePlatform?: Platform;
   audienceSize?: string;
   commissionRate?: string;
   productLink?: string;
 }
 
+export interface RadarInsight {
+  id: string;
+  platform: Platform;
+  title: string;
+  growthPercentage: number;
+  isCovered: boolean;
+  priority: 'high' | 'medium' | 'low';
+  category: string;
+  thumbnail?: string;
+}
+
+export interface SwotAnalysis {
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  threats: string[];
+}
+
 export interface CompetitorData {
   platform: Platform;
   competitorName: string;
   topKeywords: string[];
+  topTitles: string[];
   engagementRate: number;
   recentViralCount: number;
   lastUpdated: string;
-}
-
-export interface TagSuggestion {
-  tag: string;
-  relevance: number;
+  swot?: SwotAnalysis;
+  commentGaps?: CommentGapInsight;
 }
 
 export interface APIUsageStats {
@@ -48,6 +96,52 @@ export interface APIUsageStats {
   limit: number;
   percentage: number;
 }
+
+export interface ThumbnailEvaluation {
+  score: number;
+  readability: number;
+  visualImpact: number;
+  critique: string;
+}
+
+export interface AudienceInsight {
+  demographics: {
+    ageRange: string;
+    interests: string[];
+  };
+  engagementTimes: string;
+  contentFormats: {
+    format: string;
+    performanceScore: number;
+    description: string;
+  }[];
+  currentMonthTopics: {
+    topic: string;
+    volume: string;
+  }[];
+  topSearchQueries: {
+    topic: string;
+    competition: number;
+  }[];
+}
+
+export const CATEGORIES = [
+  { id: 'education', name: 'تعليم', icon: '🎓' },
+  { id: 'science', name: 'علوم', icon: '🧪' },
+  { id: 'tech', name: 'تقنية', icon: '💻' },
+  { id: 'comedy', name: 'كوميديا', icon: '😂' },
+  { id: 'gaming', name: 'ألعاب', icon: '🎮' },
+  { id: 'sports', name: 'رياضة', icon: '⚽' },
+  { id: 'travel', name: 'سفر', icon: '✈️' },
+  { id: 'animals', name: 'حيوانات', icon: '🐾' },
+  { id: 'entertainment', name: 'ترفيه', icon: '🎭' },
+  { id: 'blogs', name: 'مدونات', icon: '📝' },
+  { id: 'politics', name: 'سياسة', icon: '⚖️' },
+  { id: 'fashion', name: 'موضة', icon: '👗' },
+  { id: 'movies', name: 'أفلام', icon: '🎬' },
+  { id: 'music', name: 'موسيقى', icon: '🎵' },
+  { id: 'community', name: 'أنشطة مجتمعية', icon: '🤝' },
+];
 
 export const COUNTRIES = [
   { code: 'GLOBAL', name: 'عالمي (جميع الدول)', flag: '🌍' },

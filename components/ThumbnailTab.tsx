@@ -1,17 +1,17 @@
 
 import React, { useState } from 'react';
-import { GeminiService, ThumbnailEvaluation } from '../services/geminiService';
-import { ThemeColor } from '../types';
+import { GeminiService } from '../services/geminiService';
+import { ThemeColor, ThumbnailEvaluation } from '../types';
 
 const gemini = new GeminiService();
-
-interface ThumbnailTabProps {
-  theme: ThemeColor;
-}
 
 interface ThumbnailResult {
   url: string;
   evaluation: ThumbnailEvaluation | null;
+}
+
+interface ThumbnailTabProps {
+  theme: ThemeColor;
 }
 
 const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
@@ -144,20 +144,20 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto p-4 font-cairo text-right">
+    <div className="max-w-7xl mx-auto font-cairo text-right px-2 md:px-0">
       {/* Input Section */}
-      <div className="bg-white rounded-[3rem] p-10 shadow-xl border border-gray-100 mb-10 transition-all">
-        <h2 className="text-3xl font-black text-gray-900 mb-10 flex items-center gap-3">
+      <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-xl border border-gray-100 mb-8 md:mb-10 transition-all">
+        <h2 className="text-xl md:text-3xl font-black text-gray-900 mb-8 md:mb-10 flex items-center gap-3">
           <span>🎨</span> استديو التصميم الذكي (3 خيارات)
         </h2>
 
         {errorMsg && (
-          <div className="mb-6 p-5 bg-red-50 border-2 border-red-100 rounded-2xl text-red-700 font-black text-sm flex items-center gap-4">
-            <span className="text-2xl">⚠️</span> {errorMsg}
+          <div className="mb-6 p-4 md:p-5 bg-red-50 border-2 border-red-100 rounded-2xl text-red-700 font-black text-xs md:text-sm flex items-center gap-4">
+            <span className="text-xl md:text-2xl">⚠️</span> {errorMsg}
           </div>
         )}
 
-        <div className="space-y-8">
+        <div className="space-y-6 md:space-y-8">
           {/* Row 1: Prompt */}
           <div className="w-full">
             <label className="block text-[10px] font-black text-gray-400 mb-2 mr-4 uppercase tracking-widest">وصف المشهد الفني</label>
@@ -166,7 +166,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="مثلاً: رائد فضاء عربي يمسك بعملة بيتكوين في الفضاء، بأسلوب سايبيربانك..."
-              className="w-full px-10 py-6 rounded-[2rem] bg-gray-50 border-2 border-transparent text-black font-black text-xl outline-none focus:bg-white focus:border-blue-500 shadow-inner transition-all resize-none"
+              className="w-full px-6 md:px-10 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] bg-gray-50 border-2 border-transparent text-black font-black text-base md:text-xl outline-none focus:bg-white focus:border-blue-500 shadow-inner transition-all resize-none"
             />
           </div>
 
@@ -178,18 +178,18 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                 type="text"
                 value={thumbnailText}
                 onChange={(e) => setThumbnailText(e.target.value)}
-                className="w-full px-8 py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-900 outline-none focus:border-blue-500 shadow-sm transition-all"
+                className="w-full px-6 md:px-8 py-4 md:py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-900 outline-none focus:border-blue-500 shadow-sm transition-all"
                 placeholder="أدخل النص هنا..."
               />
-              <div className="mt-3 flex items-center justify-between px-2">
-                <label className="flex items-center gap-2 cursor-pointer group">
+              <div className="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between px-2 gap-4">
+                <label className="flex items-center gap-3 cursor-pointer group">
                   <input type="checkbox" checked={addCatchyTitle} onChange={(e) => setAddCatchyTitle(e.target.checked)} className="w-5 h-5 rounded border-gray-300 accent-blue-600 transition-all" />
                   <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-blue-600 transition-colors">تحسين العنوان تلقائياً</span>
                 </label>
-                <div onClick={() => setIncludeText(!includeText)} className="flex items-center gap-2 cursor-pointer group">
+                <div onClick={() => setIncludeText(!includeText)} className="flex items-center gap-3 cursor-pointer group">
                   <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-blue-600">إظهار النص؟</span>
-                  <div className={`w-10 h-5 rounded-full relative transition-all ${includeText ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${includeText ? 'right-6' : 'right-1'}`} />
+                  <div className={`w-12 h-6 rounded-full relative transition-all ${includeText ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${includeText ? 'right-7' : 'right-1'}`} />
                   </div>
                 </div>
               </div>
@@ -200,7 +200,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
               <select 
                 value={psychology}
                 onChange={(e) => setPsychology(e.target.value)}
-                className="w-full px-8 py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none focus:border-blue-500 shadow-sm transition-all appearance-none cursor-pointer"
+                className="w-full px-6 md:px-8 py-4 md:py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none focus:border-blue-500 shadow-sm transition-all appearance-none cursor-pointer"
               >
                 {psychologyOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -216,7 +216,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                 <select 
                   value={selectedFont}
                   onChange={(e) => setSelectedFont(e.target.value)}
-                  className="w-full px-8 py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none focus:border-blue-500 shadow-sm transition-all appearance-none cursor-pointer"
+                  className="w-full px-6 md:px-8 py-4 md:py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none focus:border-blue-500 shadow-sm transition-all appearance-none cursor-pointer"
                 >
                   {fontOptions.map(font => (
                     <option key={font} value={font}>{font}</option>
@@ -231,7 +231,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                     const s = canvasSizes.find(sz => sz.label === e.target.value);
                     if (s) { setSelectedSize(s.value); setSelectedType(s.type); }
                   }} 
-                  className="w-full px-8 py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none focus:border-blue-500 shadow-sm transition-all appearance-none cursor-pointer"
+                  className="w-full px-6 md:px-8 py-4 md:py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none focus:border-blue-500 shadow-sm transition-all appearance-none cursor-pointer"
                 >
                   {canvasSizes.map(size => <option key={size.label}>{size.label}</option>)}
                 </select>
@@ -240,14 +240,14 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
              <button 
               onClick={handleGenerate} 
               disabled={loading} 
-              className={`${themeClasses} w-full text-white px-6 py-5 rounded-2xl font-black disabled:opacity-50 shadow-lg flex items-center justify-center gap-3 transform active:scale-95 h-[68px] transition-all relative group overflow-hidden`}
+              className={`${themeClasses} w-full text-white px-6 py-4 md:py-5 rounded-2xl font-black disabled:opacity-50 shadow-lg flex items-center justify-center gap-3 transform active:scale-95 h-[60px] md:h-[68px] transition-all relative group overflow-hidden`}
             >
               {loading ? (
                 <div className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span className="text-2xl group-hover:rotate-12 transition-transform">✨</span>
-                  <span>توليد 3 خيارات احترافية</span>
+                  <span className="text-xl md:text-2xl group-hover:rotate-12 transition-transform">✨</span>
+                  <span className="text-sm md:text-base">توليد 3 خيارات احترافية</span>
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                 </>
               )}
@@ -259,38 +259,38 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
       {/* Results Section */}
       <div className="space-y-10">
         {loading && (
-          <div className="bg-slate-900 rounded-[3.5rem] p-20 flex flex-col items-center justify-center text-center animate-pulse border-8 border-white shadow-2xl relative overflow-hidden">
+          <div className="bg-slate-900 rounded-[2.5rem] md:rounded-[3.5rem] p-12 md:p-20 flex flex-col items-center justify-center text-center animate-pulse border-4 md:border-8 border-white shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-blue-500 animate-[shimmer_2s_infinite]"></div>
-            <div className="w-20 h-20 border-8 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-8" />
-            <h3 className="text-white text-3xl font-black mb-4">{statusMessage}</h3>
-            <p className="text-slate-400 font-bold max-w-md mx-auto leading-relaxed">
+            <div className="w-16 h-16 md:w-20 md:h-20 border-4 md:border-8 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-8" />
+            <h3 className="text-white text-xl md:text-3xl font-black mb-4 px-4">{statusMessage}</h3>
+            <p className="text-slate-400 font-bold max-w-md mx-auto leading-relaxed text-xs md:text-sm px-6">
               الذكاء الاصطناعي يقوم الآن بتحليل الوصف المكتوب ومطابقته مع سيكولوجية الألوان المختارة لإنتاج أفضل النتائج..
             </p>
           </div>
         )}
 
         {results.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {results.map((res, idx) => (
-              <div key={idx} className="bg-white rounded-[3.5rem] overflow-hidden shadow-xl border border-gray-100 flex flex-col transform hover:scale-[1.03] transition-all duration-500 group">
+              <div key={idx} className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden shadow-xl border border-gray-100 flex flex-col transform hover:scale-[1.02] transition-all duration-500 group">
                 {/* Image Preview */}
                 <div className="relative aspect-video bg-slate-100 overflow-hidden">
-                   <img src={res.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={`Option ${idx + 1}`} />
-                   <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-5 py-2 rounded-full font-black text-xs shadow-lg border border-white/50">
+                   <img src={res.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt={`Option ${idx + 1}`} />
+                   <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full font-black text-[10px] shadow-lg border border-white/50 uppercase">
                       خيار {idx + 1}
                    </div>
                 </div>
 
                 {/* Info & Actions */}
-                <div className="p-8 flex-1 flex flex-col bg-gradient-to-b from-white to-gray-50/50">
+                <div className="p-6 md:p-8 flex-1 flex flex-col bg-gradient-to-b from-white to-gray-50/50">
                   {res.evaluation ? (
-                    <div className="mb-8 flex-1">
+                    <div className="mb-6 md:mb-8 flex-1">
                       <div className="flex justify-between items-end mb-6 border-b border-gray-100 pb-4">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">التقييم العام</span>
                           {renderStars(res.evaluation.score)}
                         </div>
-                        <span className="text-3xl font-black text-gray-900 leading-none">{res.evaluation.score}<span className="text-xs text-gray-400">/10</span></span>
+                        <span className="text-2xl md:text-3xl font-black text-gray-900 leading-none">{res.evaluation.score}<span className="text-xs text-gray-400">/10</span></span>
                       </div>
 
                       <div className="space-y-4 mb-6">
@@ -298,9 +298,9 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                         <MetricBar label="التأثير البصري" value={res.evaluation.visualImpact} color="bg-purple-500" />
                       </div>
 
-                      <div className="bg-white p-5 rounded-3xl border border-blue-50 shadow-inner relative">
+                      <div className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl border border-blue-50 shadow-inner relative mt-4">
                         <span className="absolute -top-3 right-5 bg-white px-2 text-[10px] font-black text-blue-500 uppercase">ملاحظة الذكاء الاصطناعي</span>
-                        <p className="text-xs text-blue-900 font-bold leading-relaxed italic">
+                        <p className="text-[11px] md:text-xs text-blue-900 font-bold leading-relaxed italic">
                           "{res.evaluation.critique}"
                         </p>
                       </div>
@@ -311,7 +311,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
 
                   <button 
                     onClick={() => downloadImage(res.url, idx)}
-                    className="w-full py-5 rounded-[2rem] bg-gray-900 hover:bg-black text-white font-black text-sm flex items-center justify-center gap-3 transition-all shadow-xl shadow-gray-200 transform active:scale-95"
+                    className="w-full py-4 md:py-5 rounded-[1.5rem] md:rounded-[2rem] bg-gray-900 hover:bg-black text-white font-black text-xs md:text-sm flex items-center justify-center gap-3 transition-all shadow-xl shadow-gray-200 transform active:scale-95"
                   >
                     <span className="text-xl">📥</span> تحميل التصميم عالي الدقة
                   </button>
@@ -323,10 +323,10 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
       </div>
 
       {results.length === 0 && !loading && (
-        <div className="text-center p-24 bg-gray-50/50 rounded-[4rem] border-4 border-dashed border-gray-200">
-          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-5xl mx-auto mb-6 shadow-sm grayscale opacity-50">🖼️</div>
-          <p className="font-black text-gray-400 text-xl">استعد لتصميم صورك المصغرة!</p>
-          <p className="text-gray-300 font-bold mt-2">ادخل وصف المشهد أعلاه لتوليد 3 خيارات احترافية تناسب هوية علامتك التجارية.</p>
+        <div className="text-center p-12 md:p-24 bg-gray-50/50 rounded-[3rem] md:rounded-[4rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center">
+          <div className="w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex items-center justify-center text-4xl md:text-5xl mb-6 shadow-sm grayscale opacity-50">🖼️</div>
+          <p className="font-black text-gray-400 text-lg md:text-xl">استعد لتصميم صورك المصغرة!</p>
+          <p className="text-gray-300 font-bold mt-2 text-sm md:text-base max-w-sm mx-auto">ادخل وصف المشهد أعلاه لتوليد 3 خيارات احترافية تناسب هوية علامتك التجارية.</p>
         </div>
       )}
 

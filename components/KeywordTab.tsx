@@ -1,8 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Platform, KeywordMetric, ThemeColor, COUNTRIES } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const gemini = new GeminiService();
 
@@ -18,16 +17,21 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<KeywordMetric[]>([]);
   const [recommendationText, setRecommendationText] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // SEO Tools State
+  const [isGeneratingContent, setIsGeneratingContent] = useState(false);
+  const [aiTitle, setAiTitle] = useState('');
+  const [aiDescription, setAiDescription] = useState('');
+  const [copyTitleSuccess, setCopyTitleSuccess] = useState(false);
+  const [copyDescSuccess, setCopyDescSuccess] = useState(false);
 
   const platformsInfo = [
-    { id: Platform.GOOGLE, name: 'Google Search', icon: '🔍', color: 'bg-blue-600', hover: 'hover:bg-blue-700' },
-    { id: Platform.YOUTUBE, name: 'YouTube Trends', icon: '🎥', color: 'bg-red-600', hover: 'hover:bg-red-700' },
-    { id: Platform.TIKTOK, name: 'TikTok Hashtags', icon: '🎵', color: 'bg-black', hover: 'hover:bg-gray-900' },
-    { id: Platform.FACEBOOK, name: 'Facebook Ads', icon: '👥', color: 'bg-blue-800', hover: 'hover:bg-blue-900' },
-    { id: Platform.INSTAGRAM, name: 'Instagram Trends', icon: '📸', color: 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600', hover: 'hover:opacity-90' },
-    { id: Platform.PINTEREST, name: 'Pinterest Pins', icon: '📌', color: 'bg-red-500', hover: 'hover:bg-red-600' },
+    { id: Platform.GOOGLE, name: 'Google Search', icon: '🔍', color: 'bg-blue-600' },
+    { id: Platform.YOUTUBE, name: 'YouTube Trends', icon: '🎥', color: 'bg-red-600' },
+    { id: Platform.TIKTOK, name: 'TikTok Hashtags', icon: '🎵', color: 'bg-black' },
+    { id: Platform.FACEBOOK, name: 'Facebook Ads', icon: '👥', color: 'bg-blue-800' },
+    { id: Platform.INSTAGRAM, name: 'Instagram Trends', icon: '📸', color: 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600' },
+    { id: Platform.PINTEREST, name: 'Pinterest Pins', icon: '📌', color: 'bg-red-500' },
   ];
 
   const currentPlatform = platformsInfo.find(p => p.id === selectedPlatform) || platformsInfo[0];
@@ -37,231 +41,202 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
     setLoading(true);
     setData([]);
     setRecommendationText(null);
-    setSuccessMsg(false);
-    setErrorMsg(null);
+    setAiTitle('');
+    setAiDescription('');
     try {
-      const results = await gemini.analyzeKeywords(query, selectedPlatform, country, daysCount);
+      const results = await gemini.analyzeKeywords(query, selectedPlatform, country);
       setData(results);
-      setSuccessMsg(true);
-      setTimeout(() => setSuccessMsg(false), 5000);
 
-      const avgGoogle = results.reduce((acc, curr) => acc + (curr.googleScore || 0), 0) / (results.length || 1);
-      const avgYoutube = results.reduce((acc, curr) => acc + (curr.youtubeScore || 0), 0) / (results.length || 1);
+      // توليد نصيحة ذكية تلقائية
+      const avgStrength = results.reduce((acc, curr) => acc + (curr.strength || 0), 0) / (results.length || 1);
+      if (avgStrength > 70) {
+        setRecommendationText("هذا المجال واعد جداً! الكلمات المفتاحية المختارة تتمتع بقوة انتشار عالية ومنافسة متوسطة. ابدأ فوراً.");
+      } else {
+        setRecommendationText("المنافسة قوية في هذا النيش. ننصح بالتركيز على الكلمات الطويلة (Long-tail keywords) لضمان الظهور.");
+      }
 
-      if (selectedPlatform === Platform.TIKTOK) {
-        setRecommendationText("تيك توك منصة تفاعلية سريعة؛ هذه الهاشتاقات في أوج قوتها الآن. ركز على المحتوى القصير التفاعلي.");
-      } else if (selectedPlatform === Platform.INSTAGRAM) {
-        setRecommendationText("إنستقرام محرك بحث بصري واجتماعي؛ استخدم هذه الكلمات في العناوين والوسوم (Hashtags) لزيادة الوصول.");
-      } else if (selectedPlatform === Platform.PINTEREST) {
-        setRecommendationText("بينتريست محرك بحث بصري؛ الصور المصغرة الطولية (Portrait) هي المفتاح لزيادة الحفظ والزيارات.");
-      } else if (avgYoutube > avgGoogle * 1.3) {
-        setRecommendationText("هذا المحتوى مرئي بامتياز! نوصي بالتركيز على يوتيوب واستخدام كلماتك المفتاحية في أول 30 حرفاً من العنوان.");
-      } else if (avgGoogle > avgYoutube) {
-        setRecommendationText("جمهورك يبحث عن معلومات عميقة؛ تدوينة مفصلة ستتصدر نتائج البحث هنا.");
-      } else {
-        setRecommendationText("توازن مثالي! ننصح باستراتيجية هجينة بين البحث النصي والمحتوى المرئي.");
-      }
-    } catch (error: any) {
-      if (error.message?.includes("MISSING_KEY")) {
-        setErrorMsg(`يرجى إدخال مفتاح الـ API لـ ${currentPlatform.name} في صفحة الإعدادات لتفعيل جلب البيانات الحقيقية.`);
-      } else {
-        setErrorMsg("حدث خطأ أثناء جلب البيانات. تأكد من صحة المفاتيح في الإعدادات.");
-      }
+      // توليد العناوين والأوصاف بناءً على النتائج والمنصة المختارة
+      handleGenerateCopy(results.map(r => r.keyword));
+
+    } catch (error) {
+      console.error(error);
+      alert("حدث خطأ أثناء جلب البيانات.");
     } finally {
       setLoading(false);
     }
   };
 
-  const getPlatformIcon = (p?: Platform) => {
-    return platformsInfo.find(info => info.id === p)?.icon || '⚡';
+  const handleGenerateCopy = async (keywords: string[]) => {
+    if (keywords.length === 0) return;
+    setIsGeneratingContent(true);
+    try {
+      const { title, description } = await gemini.generatePlatformContent(keywords, selectedPlatform, query);
+      setAiTitle(title);
+      setAiDescription(description);
+    } catch (error) {
+      console.error("Failed to generate AI copy", error);
+    } finally {
+      setIsGeneratingContent(false);
+    }
   };
 
-  const getVolumeColor = (volume: string) => {
-    const v = volume?.toLowerCase();
-    if (v === 'high') return '#22c55e'; 
-    if (v === 'medium') return '#f59e0b'; 
-    if (v === 'low') return '#ef4444'; 
-    return '#94a3b8';
+  const copyToClipboard = (text: string, type: 'title' | 'desc') => {
+    navigator.clipboard.writeText(text);
+    if (type === 'title') {
+      setCopyTitleSuccess(true);
+      setTimeout(() => setCopyTitleSuccess(false), 2000);
+    } else {
+      setCopyDescSuccess(true);
+      setTimeout(() => setCopyDescSuccess(false), 2000);
+    }
+  };
+
+  const getLevelColor = (val: number) => {
+    if (val >= 70) return 'text-green-600 bg-green-50';
+    if (val >= 40) return 'text-amber-600 bg-amber-50';
+    return 'text-red-600 bg-red-50';
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-2 md:p-4 font-cairo">
-      {successMsg && (
-        <div className="mb-6 p-4 bg-green-50 border-2 border-green-100 rounded-3xl text-green-700 font-black text-center animate-bounce shadow-sm text-xs md:text-sm">
-          ✅ تم جلب البيانات بنجاح من {currentPlatform.name}
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="mb-6 p-4 bg-red-50 border-2 border-red-100 rounded-3xl text-red-700 font-black text-center shadow-sm flex flex-col md:flex-row items-center justify-center gap-4 text-xs md:text-sm">
-          <div className="flex items-center gap-2"><span>⚠️</span> {errorMsg}</div>
-          <button onClick={() => window.location.hash = 'settings'} className="bg-red-600 text-white px-4 py-2 rounded-xl text-[10px] md:text-xs">اذهب للإعدادات</button>
-        </div>
-      )}
-
-      <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-xl border border-gray-100 mb-6 md:mb-10 transition-all">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-10 gap-4">
-          <div className="flex flex-col">
-            <h2 className="text-xl md:text-3xl font-black text-gray-900 flex items-center gap-3">
-              <span>🚀</span> تحليل السوق المستهدف
-            </h2>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              نظام جلب مباشر: {currentPlatform.name}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <span className="text-[10px] font-black text-gray-400 whitespace-nowrap">المنطقة:</span>
-            <select 
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              className="bg-gray-100 border-none px-4 py-2 rounded-xl text-[10px] md:text-xs font-black outline-none cursor-pointer w-full md:w-auto"
-            >
-              {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-            </select>
-          </div>
+    <div className="max-w-6xl mx-auto p-4 font-cairo text-right">
+      {/* Search Console */}
+      <div className="bg-white rounded-[2.5rem] p-8 md:p-12 shadow-sm border border-gray-100 mb-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+          <h2 className="text-2xl md:text-3xl font-black text-gray-900 flex items-center gap-3">
+            <span>🚀</span> تحليل الكلمات المتصدرة
+          </h2>
+          <select 
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="bg-gray-50 border border-gray-100 px-6 py-3 rounded-2xl text-xs font-black outline-none cursor-pointer"
+          >
+            {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+          </select>
         </div>
         
         <div className="space-y-6">
-          <div className="w-full">
-            <label className="block text-[10px] font-black text-gray-400 mb-2 mr-2 md:mr-4 uppercase">كلمة البحث</label>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`ابحث في ${currentPlatform.name}...`}
-              className="w-full px-6 md:px-10 py-4 md:py-6 rounded-[1.5rem] md:rounded-[2.5rem] bg-white border-2 border-gray-200 text-black font-black text-lg md:text-2xl outline-none transition-all focus:border-blue-500 shadow-sm"
-            />
-          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={`ابحث عن كلمات رائجة في ${currentPlatform.name}...`}
+            className="w-full px-8 py-5 md:py-6 rounded-3xl bg-gray-50 border-2 border-transparent focus:bg-white focus:border-blue-500 text-black font-black text-xl outline-none shadow-inner transition-all"
+          />
           
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative group">
-              <label className="block text-[10px] font-black text-gray-400 mb-2 mr-2 md:mr-4 uppercase">المنصة</label>
-              <select
-                value={selectedPlatform}
-                onChange={(e) => setSelectedPlatform(e.target.value as Platform)}
-                className="w-full px-6 md:px-10 py-4 md:py-5 rounded-[1.5rem] md:rounded-[2rem] border-2 border-gray-100 bg-white outline-none font-black text-gray-700 shadow-sm appearance-none cursor-pointer text-sm md:text-lg"
-              >
-                {platformsInfo.map(p => (
-                  <option key={p.id} value={p.id}>{p.icon} {p.name}</option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedPlatform}
+              onChange={(e) => setSelectedPlatform(e.target.value as Platform)}
+              className="flex-1 px-8 py-4 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-700 outline-none appearance-none cursor-pointer"
+            >
+              {platformsInfo.map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}
+            </select>
 
-            <div className="flex-[2] flex flex-col">
-              <label className="block text-[10px] font-black text-gray-400 mb-2 mr-2 md:mr-4 uppercase">تأكيد</label>
-              <button
-                onClick={handleSearch}
-                disabled={loading}
-                className={`${currentPlatform.color} ${currentPlatform.hover} w-full text-white px-6 md:px-10 py-4 md:py-5 rounded-[1.5rem] md:rounded-[2rem] transition-all font-black disabled:opacity-50 shadow-lg flex items-center justify-center gap-4 text-sm md:text-xl active:scale-95`}
-              >
-                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span>تحليل {currentPlatform.name}</span>}
-              </button>
-            </div>
+            <button
+              onClick={handleSearch}
+              disabled={loading}
+              className={`${currentPlatform.color} text-white px-12 py-4 rounded-2xl font-black disabled:opacity-50 shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3`}
+            >
+              {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "تحليل النيش المختار"}
+            </button>
           </div>
         </div>
       </div>
 
       {data.length > 0 && (
-        <div className="space-y-6 md:space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-            <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100">
-              <h3 className="text-sm md:text-xl font-black mb-6 md:mb-10 flex items-center gap-3">
-                <span className="bg-gray-100 p-2 rounded-xl">📊</span> المنافسة مقابل الطلب
-              </h3>
-              <div className="h-64 md:h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="keyword" tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 700 }} />
-                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', fontSize: '10px' }} />
-                    <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px' }}/>
-                    <Bar dataKey="competition" name="المنافسة" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={10} />
-                    <Bar dataKey="strength" name="الفرصة" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={10} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+          {/* Keywords List (Enhanced with Audience Size) */}
+          <div className="bg-white rounded-[2.5rem] p-8 md:p-12 shadow-sm border border-gray-100">
+            <h3 className="text-xl font-black mb-8 flex items-center gap-3">
+              <span className="bg-blue-50 p-2 rounded-xl text-blue-600">📊</span> الكلمات الأكثر بحثاً وقوة
+            </h3>
+            
+            <div className="grid grid-cols-1 gap-4">
+              {data.map((item, idx) => (
+                <div key={idx} className="flex flex-col md:flex-row items-center justify-between p-6 bg-gray-50/50 border border-gray-100 rounded-3xl group hover:bg-white hover:shadow-lg transition-all">
+                  <div className="flex items-center gap-4 mb-4 md:mb-0">
+                    <span className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-sm font-black shadow-sm text-gray-400">{idx + 1}</span>
+                    <div>
+                      <h4 className="font-black text-lg text-gray-900">{item.keyword}</h4>
+                      <div className="flex items-center gap-4 mt-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">حجم البحث: <span className="text-gray-600">{item.searchVolume}</span></p>
+                        <p className="text-[10px] font-bold text-blue-400 uppercase">عدد الجمهور: <span className="text-blue-600">{item.audienceSize}</span></p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black ${getLevelColor(item.strength)}`}>
+                      قوة التصدر: {item.strength}%
+                    </div>
+                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black ${getLevelColor(100 - item.competition)}`}>
+                      المنافسة: {item.competition}%
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100">
-              <h3 className="text-sm md:text-xl font-black mb-6 md:mb-10 flex items-center gap-3">
-                <span className="bg-gray-100 p-2 rounded-xl">⚡</span> نية بحث الجمهور
-              </h3>
-              <div className="h-64 md:h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="keyword" tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 700 }} />
-                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', fontSize: '10px' }} />
-                    <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px' }}/>
-                    <Bar dataKey="googleScore" name="معلوماتية" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={10} />
-                    <Bar dataKey="youtubeScore" name="تفاعلية" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={10} />
-                  </BarChart>
-                </ResponsiveContainer>
+            {recommendationText && (
+              <div className="mt-8 p-6 bg-blue-50 border border-blue-100 rounded-3xl">
+                <p className="text-blue-900 font-bold text-sm leading-relaxed">
+                  <span className="font-black">💡 نصيحة الخوارزمية:</span> {recommendationText}
+                </p>
               </div>
-            </div>
+            )}
           </div>
 
-          {recommendationText && (
-            <div className="p-6 md:p-10 bg-amber-50 rounded-[2rem] md:rounded-[3rem] border-2 border-amber-100 flex flex-col md:flex-row items-start gap-4 md:gap-8 shadow-sm">
-              <div className="bg-white p-3 md:p-5 rounded-2xl shadow-md text-2xl md:text-4xl">💡</div>
-              <div className="flex-1">
-                <h4 className="text-amber-900 font-black text-lg md:text-2xl mb-2">تحليل SEO Master لبيانات {currentPlatform.name}</h4>
-                <p className="text-amber-800 font-bold text-sm md:text-lg leading-relaxed">{recommendationText}</p>
-              </div>
+          {/* SEO AI Assistant Tools */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Title Assistant */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600/5 blur-3xl rounded-full"></div>
+               <h3 className="text-xl font-black mb-6 flex items-center gap-3 relative z-10">
+                 <span className="text-blue-600">✍️</span> عنوان {currentPlatform.name} مغناطيسي
+               </h3>
+               {isGeneratingContent ? (
+                 <div className="h-32 flex items-center justify-center"><div className="w-8 h-8 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div></div>
+               ) : (
+                 <div className="space-y-4 relative z-10">
+                    <textarea 
+                      value={aiTitle} 
+                      onChange={(e) => setAiTitle(e.target.value)}
+                      className="w-full bg-gray-50 border-2 border-transparent p-5 rounded-2xl font-black text-lg outline-none focus:border-blue-500 h-32 resize-none"
+                    />
+                    <button 
+                      onClick={() => copyToClipboard(aiTitle, 'title')}
+                      className={`w-full py-4 rounded-xl font-black text-sm transition-all ${copyTitleSuccess ? 'bg-green-500 text-white' : 'bg-gray-900 text-white hover:bg-black'}`}
+                    >
+                      {copyTitleSuccess ? '✅ تم النسخ' : '📋 نسخ العنوان'}
+                    </button>
+                 </div>
+               )}
             </div>
-          )}
 
-          <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
-            <h3 className="text-sm md:text-xl font-black mb-6 flex items-center gap-3">
-              <span className="bg-gray-100 p-2 rounded-xl">💎</span> فرص النمو المكتشفة
-            </h3>
-            <div className="overflow-x-auto -mx-6 px-6">
-              <table className="w-full text-right min-w-[600px]">
-                <thead>
-                  <tr className="border-b-2 border-gray-50">
-                    <th className="py-4 px-2 text-[10px] text-gray-400 font-black uppercase">الكلمة</th>
-                    <th className="py-4 px-2 text-[10px] text-gray-400 font-black uppercase text-center">الجمهور</th>
-                    <th className="py-4 px-2 text-[10px] text-gray-400 font-black uppercase text-center">حجم البحث</th>
-                    <th className="py-4 px-2 text-[10px] text-gray-400 font-black uppercase text-center">قوة الفرصة</th>
-                    <th className="py-4 px-2 text-[10px] text-gray-400 font-black uppercase text-center">المنصة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/80 transition-all border-b border-gray-50/50">
-                      <td className="py-4 px-2">
-                        <p className="font-black text-gray-900 text-sm md:text-base">{item.keyword}</p>
-                      </td>
-                      <td className="py-4 px-2 text-center">
-                        <span className="font-black text-blue-600 text-sm">{item.audienceSize || 'N/A'}</span>
-                      </td>
-                      <td className="py-4 px-2 text-center">
-                        <span className={`px-4 py-1.6 rounded-xl text-[10px] font-black text-white ${
-                          item.searchVolume?.toLowerCase() === 'high' ? 'bg-green-500' : 'bg-amber-500'
-                        }`}>
-                          {item.searchVolume || 'Medium'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div className="flex items-center justify-center gap-2">
-                           <div className="w-16 md:w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full" style={{ width: `${item.strength}%`, backgroundColor: getVolumeColor(item.searchVolume) }}></div>
-                           </div>
-                           <span className="text-[10px] font-black text-gray-900">{item.strength}%</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-2 text-center">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-gray-400 bg-gray-100 px-3 py-1 rounded-lg">
-                          {getPlatformIcon(selectedPlatform)} {selectedPlatform}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Description Assistant */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-purple-600/5 blur-3xl rounded-full"></div>
+               <h3 className="text-xl font-black mb-1 flex items-center gap-3 relative z-10">
+                 <span className="text-purple-600">📝</span> وصف مهيأ لخوارزمية {currentPlatform.name}
+               </h3>
+               <p className="text-[10px] text-gray-400 font-bold mb-5 mr-10 relative z-10 uppercase tracking-tighter">الترتيب: Hook -> Value -> Keywords -> CTA</p>
+               {isGeneratingContent ? (
+                 <div className="h-32 flex items-center justify-center"><div className="w-8 h-8 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin"></div></div>
+               ) : (
+                 <div className="space-y-4 relative z-10">
+                    <textarea 
+                      value={aiDescription} 
+                      onChange={(e) => setAiDescription(e.target.value)}
+                      className="w-full bg-gray-50 border-2 border-transparent p-5 rounded-2xl font-bold text-xs leading-relaxed outline-none focus:border-purple-500 h-32 resize-none"
+                    />
+                    <button 
+                      onClick={() => copyToClipboard(aiDescription, 'desc')}
+                      className={`w-full py-4 rounded-xl font-black text-sm transition-all ${copyDescSuccess ? 'bg-green-500 text-white' : 'bg-gray-900 text-white hover:bg-black'}`}
+                    >
+                      {copyDescSuccess ? '✅ تم النسخ' : '📋 نسخ الوصف'}
+                    </button>
+                 </div>
+               )}
             </div>
           </div>
         </div>

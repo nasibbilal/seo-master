@@ -23,8 +23,15 @@ const TagTab: React.FC<TagTabProps> = ({ theme, daysCount }) => {
     setLoading(true);
     setCopied(false);
     try {
-      const result = await gemini.generateTags(topic, platform, country, daysCount);
-      setTags(result);
+      const result = await gemini.generateTags(topic, platform, country);
+      // التأكد من أن النتيجة مصفوفة وليست كائناً يحتوي على حقول تحليلية
+      if (Array.isArray(result)) {
+        setTags(result);
+      } else if (result && typeof result === 'object' && (result as any).viral_tags) {
+        setTags((result as any).viral_tags);
+      } else {
+        setTags([]);
+      }
     } catch (error) {
       console.error(error);
       alert("حدث خطأ أثناء توليد العلامات.");
@@ -114,7 +121,7 @@ const TagTab: React.FC<TagTabProps> = ({ theme, daysCount }) => {
         </div>
       </div>
 
-      {tags.length > 0 && (
+      {Array.isArray(tags) && tags.length > 0 && (
         <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3.5rem] shadow-sm border border-gray-100 animate-in slide-in-from-bottom-5">
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 border-b border-gray-50 pb-6">
             <h3 className="text-lg md:text-xl font-black text-gray-900">🎯 العلامات المقترحة</h3>
@@ -129,7 +136,7 @@ const TagTab: React.FC<TagTabProps> = ({ theme, daysCount }) => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
             {tags.map((tag, idx) => (
               <div key={idx} className="bg-gray-50 px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black border border-gray-100 text-center truncate">
-                {tag}
+                {String(tag)}
               </div>
             ))}
           </div>
