@@ -36,6 +36,35 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const checkKeyStatus = (plt: Platform) => {
+    switch (plt) {
+      case Platform.YOUTUBE: {
+        const cfg = gemini.getPlatformConfig('youtube');
+        return Boolean(cfg.youtube_key || cfg.youtube_key_2);
+      }
+      case Platform.TIKTOK: {
+        const cfg = gemini.getPlatformConfig('tiktok');
+        return Boolean(cfg.tiktok_secret);
+      }
+      case Platform.INSTAGRAM:
+      case Platform.FACEBOOK: {
+        const cfg = gemini.getPlatformConfig('meta');
+        return Boolean(cfg.meta_token);
+      }
+      case Platform.GOOGLE: {
+        const cfg = gemini.getPlatformConfig('google_search');
+        return Boolean(cfg.google_token);
+      }
+      case Platform.PINTEREST: {
+        const cfg = gemini.getPlatformConfig('pinterest');
+        return Boolean(cfg.pinterest_token);
+      }
+      default: return false;
+    }
+  };
+
+  const isKeyConnected = checkKeyStatus(selectedPlatform);
+
   const themeClasses = {
     red: 'bg-red-600 hover:bg-red-700 shadow-red-600/20',
     blue: 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20',
@@ -75,7 +104,19 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
             </div>
           </div>
           <div>
-            <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-widest mr-4">تحديد المنصة</label>
+            <div className="flex justify-between items-center mb-2 px-2">
+              <label className="text-[10px] font-black text-gray-400 block uppercase tracking-widest">تحديد المنصة</label>
+              {isKeyConnected ? (
+                <span className="text-[9px] font-black bg-green-50 text-green-600 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1 shadow-sm">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                  مفتاح API متصل
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200">
+                  ذكاء اصطناعي + تحليل
+                </span>
+              )}
+            </div>
             <select 
               value={selectedPlatform} 
               onChange={(e) => setSelectedPlatform(e.target.value as Platform)}
