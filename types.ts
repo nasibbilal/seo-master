@@ -40,8 +40,11 @@ export interface ReportSettings {
 export interface ChannelMetadata {
   id: string;
   name: string;
+  platform?: Platform;
+  logoUrl?: string; // رابط الشعار الحقيقي
   youtubeId?: string;
   youtubeKey?: string;
+  youtubeKey2?: string; // المفتاح الاحتياطي
   metaToken?: string;
   tiktokSecret?: string;
   reportSettings?: ReportSettings;
@@ -70,6 +73,8 @@ export interface RadarInsight {
   priority: 'high' | 'medium' | 'low';
   category: string;
   thumbnail?: string;
+  searchVolume?: string; // مضاف حديثاً
+  audienceSize?: string; // مضاف حديثاً
 }
 
 export interface SwotAnalysis {
@@ -123,6 +128,46 @@ export interface AudienceInsight {
     topic: string;
     competition: number;
   }[];
+}
+
+export interface VideoAuditResult {
+  optimizationPlan: {
+    target: string;
+    suggestion: string;
+    impact: 'High' | 'Medium' | 'Low';
+  }[];
+  criticalFlaws: string[];
+  seoScore: number;
+  engagementPotential: number;
+  retentionEstimate: string;
+  platformStandardsMatch: {
+    platform: string;
+    notes: string;
+    status: 'Exceeds' | 'Meets' | 'Below';
+  }[];
+}
+
+// New interfaces for competitor and radar analysis
+export interface CounterAttackPlan {
+  title: string;
+  description: string;
+}
+
+export interface EnhancedCompetitorData extends CompetitorData {
+  whatWasSaid?: string;
+  hashtags?: string[];
+  algoReason?: string;
+  audienceQuestions?: string[];
+  counterAttack?: CounterAttackPlan;
+}
+
+export interface GapAnalysis {
+  isGap: boolean;
+  message: string;
+  urgency: string;
+  exploitKeywords: string[];
+  suggestedTitle: string;
+  suggestedDesc: string;
 }
 
 export const CATEGORIES = [
