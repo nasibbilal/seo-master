@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { Platform, RadarInsight, ThemeColor, CATEGORIES, COUNTRIES, GapAnalysis } from '../types';
+import { openDirectAdLink } from '../utils/adHelper';
 
 const gemini = new GeminiService();
 
@@ -18,6 +19,7 @@ const RadarTab: React.FC<{ theme: ThemeColor; daysCount: number; onTrendDetected
   const [copiedDesc, setCopiedDesc] = useState(false);
 
   const handleScan = async () => {
+    openDirectAdLink();
     setLoading(true);
     setGapAnalysis(null);
     setStrategyResult({});

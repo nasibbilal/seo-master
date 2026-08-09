@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { ThemeColor, Platform, COUNTRIES, AudienceInsight } from '../types';
+import { openDirectAdLink } from '../utils/adHelper';
 
 const gemini = new GeminiService();
 
@@ -49,6 +50,7 @@ const AudienceTab: React.FC<AudienceTabProps> = ({ theme, daysCount, activeChann
 
   const handleAnalyze = async () => {
     if (!category) return;
+    openDirectAdLink();
     setLoading(true);
     setInsight(null);
     try {

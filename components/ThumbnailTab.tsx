@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { ThemeColor, ThumbnailEvaluation } from '../types';
+import { openDirectAdLink } from '../utils/adHelper';
 
 const gemini = new GeminiService();
 
@@ -59,6 +60,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
       alert("يرجى إدخال وصف الصورة أولاً");
       return;
     }
+    openDirectAdLink();
     setLoading(true);
     setErrorMsg(null);
     setResults([]);

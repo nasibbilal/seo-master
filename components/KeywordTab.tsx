@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Platform, KeywordMetric, ThemeColor, COUNTRIES } from '../types';
 import { GeminiService } from '../services/geminiService';
+import { openDirectAdLink } from '../utils/adHelper';
 
 const gemini = new GeminiService();
 
@@ -37,6 +38,7 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
 
   const handleSearch = async () => {
     if (!query) return;
+    openDirectAdLink();
     setLoading(true);
     setQuotaExceeded(false);
     setData([]);

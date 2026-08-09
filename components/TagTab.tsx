@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { ThemeColor, Platform, COUNTRIES } from '../types';
+import { openDirectAdLink } from '../utils/adHelper';
 
 const gemini = new GeminiService();
 
@@ -20,6 +21,7 @@ const TagTab: React.FC<TagTabProps> = ({ theme, daysCount }) => {
 
   const handleGenerate = async () => {
     if (!topic) return;
+    openDirectAdLink();
     setLoading(true);
     setCopied(false);
     try {

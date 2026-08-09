@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { Platform, CompetitorData, ThemeColor, EnhancedCompetitorData } from '../types';
+import { openDirectAdLink } from '../utils/adHelper';
 
 const gemini = new GeminiService();
 
@@ -14,6 +15,7 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
 
   const handleAnalyze = async () => {
     if (!competitorInput) return;
+    openDirectAdLink();
     setLoading(true);
     setResults([]);
     try {
