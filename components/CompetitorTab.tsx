@@ -2,11 +2,12 @@
 import React, { useState } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { Platform, CompetitorData, ThemeColor, EnhancedCompetitorData } from '../types';
-import { openDirectAdLink } from '../utils/adHelper';
+import { useLanguage } from '../context/LanguageContext';
 
 const gemini = new GeminiService();
 
 const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
+  const { lang, t, dir } = useLanguage();
   const [competitorInput, setCompetitorInput] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>(Platform.YOUTUBE);
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,6 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
 
   const handleAnalyze = async () => {
     if (!competitorInput) return;
-    openDirectAdLink();
     setLoading(true);
     setResults([]);
     try {
@@ -23,10 +23,10 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
       if (data && Array.isArray(data) && data.length > 0) {
         setResults(data as EnhancedCompetitorData[]);
       } else {
-        alert("لم يتمكن النظام من سحب بيانات الرابط. تأكد من صحة الرابط أو مفتاح الـ API في الإعدادات.");
+        alert(lang === 'ar' ? "لم يتمكن النظام من سحب بيانات الرابط. تأكد من صحة الرابط أو مفتاح الـ API في الإعدادات." : "Could not fetch link data. Please check link format or API keys.");
       }
     } catch (error) {
-      alert("خطأ في الاتصال بالاستخبارات. يرجى مراجعة إعدادات الـ API.");
+      alert(lang === 'ar' ? "خطأ في الاتصال بالاستخبارات. يرجى مراجعة إعدادات الـ API." : "Error connecting to Intelligence. Please check API settings.");
     } finally {
       setLoading(false);
     }
@@ -74,26 +74,28 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
   }[theme];
 
   const platformsList = [
-    { id: Platform.YOUTUBE, name: 'يوتيوب 🎥' },
-    { id: Platform.TIKTOK, name: 'تيك توك 🎵' },
-    { id: Platform.INSTAGRAM, name: 'إنستغرام 📸' },
-    { id: Platform.FACEBOOK, name: 'فيسبوك 👥' },
-    { id: Platform.GOOGLE, name: 'جوجل 🔍' },
-    { id: Platform.PINTEREST, name: 'بينتريست 📌' },
+    { id: Platform.YOUTUBE, name: lang === 'ar' ? 'يوتيوب 🎥' : 'YouTube 🎥' },
+    { id: Platform.TIKTOK, name: lang === 'ar' ? 'تيك توك 🎵' : 'TikTok 🎵' },
+    { id: Platform.INSTAGRAM, name: lang === 'ar' ? 'إنستغرام 📸' : 'Instagram 📸' },
+    { id: Platform.FACEBOOK, name: lang === 'ar' ? 'فيسبوك 👥' : 'Facebook 👥' },
+    { id: Platform.GOOGLE, name: lang === 'ar' ? 'جوجل 🔍' : 'Google 🔍' },
+    { id: Platform.PINTEREST, name: lang === 'ar' ? 'بينتريست 📌' : 'Pinterest 📌' },
   ];
 
+  const isRtl = dir === 'rtl';
+
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-6 font-cairo text-right">
+    <div className={`max-w-7xl mx-auto p-4 md:p-6 font-cairo ${isRtl ? 'text-right' : 'text-left'}`} dir={dir}>
       <div className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-8 md:p-14 shadow-2xl border border-gray-100 mb-12 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-48 h-48 bg-gray-50 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-blue-50 transition-colors"></div>
         <h2 className="text-2xl md:text-4xl font-black text-gray-900 mb-10 flex items-center gap-4 relative z-10">
           <span className="bg-slate-900 text-white w-14 h-14 rounded-[1.5rem] flex items-center justify-center text-2xl shadow-xl">🕵️</span>
-          استخبارات المنافسين (صيد فجوات التعليقات)
+          {t('competitor.title')}
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative z-10">
           <div className="md:col-span-2">
-            <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-widest mr-4">رابط فيديو المنافس</label>
+            <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-widest mx-4">{t('competitor.urlPlaceholder')}</label>
             <div className="relative">
               <input
                 type="text"
@@ -107,15 +109,15 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
           </div>
           <div>
             <div className="flex justify-between items-center mb-2 px-2">
-              <label className="text-[10px] font-black text-gray-400 block uppercase tracking-widest">تحديد المنصة</label>
+              <label className="text-[10px] font-black text-gray-400 block uppercase tracking-widest">{t('modal.platform')}</label>
               {isKeyConnected ? (
                 <span className="text-[9px] font-black bg-green-50 text-green-600 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1 shadow-sm">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                  مفتاح API متصل
+                  {lang === 'ar' ? 'مفتاح API متصل' : 'API Key Connected'}
                 </span>
               ) : (
                 <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200">
-                  ذكاء اصطناعي + تحليل
+                  {lang === 'ar' ? 'ذكاء اصطناعي + تحليل' : 'AI + Analysis'}
                 </span>
               )}
             </div>
@@ -131,9 +133,9 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
             <button
               onClick={handleAnalyze}
               disabled={loading}
-              className={`${themeClasses} text-white w-full py-5 rounded-[1.5rem] font-black disabled:opacity-50 transition-all flex items-center justify-center gap-4 shadow-xl active:scale-95 h-[68px] text-lg`}
+              className={`${themeClasses} text-white w-full py-5 rounded-[1.5rem] font-black disabled:opacity-50 transition-all flex items-center justify-center gap-4 shadow-xl active:scale-95 h-[68px] text-lg cursor-pointer`}
             >
-              {loading ? <div className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin" /> : "بدء التجسس والتحليل"}
+              {loading ? <div className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin" /> : (lang === 'ar' ? 'بدء التجسس والتحليل' : 'Start Spy & Analysis')}
             </button>
           </div>
         </div>
@@ -144,7 +146,7 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="space-y-8">
               <h3 className="font-black text-2xl mb-2 flex items-center gap-3">
-                <span className="text-blue-600">📊</span> تفكيك استراتيجية المنافس
+                <span className="text-blue-600">📊</span> {lang === 'ar' ? 'تفكيك استراتيجية المنافس' : 'Deconstruct Competitor Strategy'}
               </h3>
               {results.map((res, i) => (
                 <div key={i} className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-xl space-y-6">
@@ -154,7 +156,7 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
                   </div>
 
                   <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100">
-                    <span className="text-[10px] font-black text-blue-600 uppercase mb-3 block tracking-widest">أسئلة الجمهور (فجوات التعليقات) ❓</span>
+                    <span className="text-[10px] font-black text-blue-600 uppercase mb-3 block tracking-widest">{lang === 'ar' ? 'أسئلة الجمهور (فجوات التعليقات) ❓' : 'Audience Questions (Comment Gaps) ❓'}</span>
                     <ul className="space-y-3">
                       {(res.audienceQuestions || []).length > 0 ? (
                         res.audienceQuestions?.map((q, idx) => (
@@ -163,13 +165,13 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
                           </li>
                         ))
                       ) : (
-                        <p className="text-xs text-gray-400">لا توجد أسئلة مكتشفة</p>
+                        <p className="text-xs text-gray-400">{lang === 'ar' ? 'لا توجد أسئلة مكتشفة' : 'No questions detected'}</p>
                       )}
                     </ul>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-black text-purple-600 uppercase mb-3 block tracking-widest">الهاشتاغات المستخدمة 🏷️</span>
+                    <span className="text-[10px] font-black text-purple-600 uppercase mb-3 block tracking-widest">{lang === 'ar' ? 'الهاشتاغات المستخدمة 🏷️' : 'Hashtags Used 🏷️'}</span>
                     <div className="flex flex-wrap gap-3">
                       {res.hashtags?.map((tag, idx) => (
                         <span key={idx} className="bg-purple-50 text-purple-700 px-5 py-2 rounded-xl text-xs font-black border border-purple-100 shadow-sm">{tag}</span>
@@ -182,21 +184,21 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
 
             <div className="space-y-8">
               <h3 className="font-black text-2xl mb-2 flex items-center gap-3">
-                <span className="text-red-600">🗣️</span> محتوى الفيديو (التحليل الصوتي)
+                <span className="text-red-600">🗣️</span> {lang === 'ar' ? 'محتوى الفيديو (التحليل الصوتي)' : 'Video Content (Audio Analysis)'}
               </h3>
               <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden h-full flex flex-col border border-white/5">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 blur-[80px] rounded-full"></div>
                 <div className="relative z-10 flex-1">
                    <div className="bg-white/5 p-4 rounded-xl mb-6 border border-white/10 flex items-center gap-3">
                       <span className="animate-pulse w-2 h-2 bg-red-500 rounded-full"></span>
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ملخص ما قاله المنافس</span>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{lang === 'ar' ? 'ملخص ما قاله المنافس' : 'Summary of Competitor Speech'}</span>
                    </div>
                    <p className="text-base font-bold text-gray-300 leading-loose">
-                      {results[0]?.whatWasSaid || "الذكاء الاصطناعي يستخرج أهم النقاط الكلامية..."}
+                      {results[0]?.whatWasSaid || (lang === 'ar' ? "الذكاء الاصطناعي يستخرج أهم النقاط الكلامية..." : "AI is extracting key spoken points...")}
                    </p>
                 </div>
                 <div className="mt-8 bg-blue-600/20 p-4 rounded-2xl border border-blue-500/30 text-center">
-                  <span className="text-[10px] font-black text-blue-400">سر تفضيل الخوارزمية: {results[0]?.algoReason}</span>
+                  <span className="text-[10px] font-black text-blue-400">{lang === 'ar' ? 'سر تفضيل الخوارزمية:' : 'Algorithm Preference Secret:'} {results[0]?.algoReason}</span>
                 </div>
               </div>
             </div>
@@ -207,40 +209,40 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
             <div className="relative z-10">
               <div className="flex flex-col md:flex-row items-center gap-10 mb-16">
                 <div className="bg-white text-red-600 w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-5xl shadow-2xl animate-bounce">🚀</div>
-                <div className="text-center md:text-right">
-                  <h3 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">خطة الهجوم المضاد (خوارزمية الأجوبة)</h3>
-                  <p className="text-red-100 text-lg font-bold">الوصف بالأسفل مدمج به أجوبة ذكية لأسئلة جمهور المنافس لتظهر أنت كخبير أول لديهم.</p>
+                <div className={`text-center ${isRtl ? 'md:text-right' : 'md:text-left'}`}>
+                  <h3 className="text-3xl md:text-5xl font-black mb-4 tracking-tight">{lang === 'ar' ? 'خطة الهجوم المضاد (خوارزمية الأجوبة)' : 'Counter-Attack Plan (Answers Algo)'}</h3>
+                  <p className="text-red-100 text-lg font-bold">{lang === 'ar' ? 'الوصف بالأسفل مدمج به أجوبة ذكية لأسئلة جمهور المنافس لتظهر أنت كخبير أول لديهم.' : 'The description below incorporates smart answers to competitor audience questions so you rank as their top expert.'}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <div className="bg-white/10 backdrop-blur-xl p-10 rounded-[3rem] border border-white/20 shadow-inner group hover:bg-white/20 transition-all">
                   <div className="flex justify-between items-center mb-6">
-                    <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">العنوان المتفوق ✍️</span>
+                    <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">{lang === 'ar' ? 'العنوان المتفوق ✍️' : 'Superior Title ✍️'}</span>
                     <button 
                       onClick={() => handleCopy(results[0]?.counterAttack?.title || "", 'atktitle')}
-                      className={`text-[10px] px-5 py-2 rounded-xl font-black transition-all ${copied === 'atktitle' ? 'bg-green-500 text-white' : 'bg-white/20 text-white hover:bg-white'}`}
+                      className={`text-[10px] px-5 py-2 rounded-xl font-black transition-all cursor-pointer ${copied === 'atktitle' ? 'bg-green-500 text-white' : 'bg-white/20 text-white hover:bg-white hover:text-red-600'}`}
                     >
-                      {copied === 'atktitle' ? '✓ تم النسخ' : '📋 نسخ'}
+                      {copied === 'atktitle' ? (lang === 'ar' ? '✓ تم النسخ' : '✓ Copied') : (lang === 'ar' ? '📋 نسخ' : '📋 Copy')}
                     </button>
                   </div>
                   <p className="text-2xl md:text-3xl font-black text-white leading-tight">
-                    {results[0]?.counterAttack?.title || "جاري توليد العنوان..."}
+                    {results[0]?.counterAttack?.title || (lang === 'ar' ? "جاري توليد العنوان..." : "Generating title...")}
                   </p>
                 </div>
 
                 <div className="bg-white/10 backdrop-blur-xl p-10 rounded-[3rem] border border-white/20 shadow-inner group hover:bg-white/20 transition-all">
                   <div className="flex justify-between items-center mb-6">
-                    <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">وصف الـ SEO (يحتوي على الأجوبة الذكية) 📝</span>
+                    <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">{lang === 'ar' ? 'وصف الـ SEO (يحتوي على الأجوبة الذكية) 📝' : 'SEO Description (Contains Smart Answers) 📝'}</span>
                     <button 
                       onClick={() => handleCopy(results[0]?.counterAttack?.description || "", 'atkdesc')}
-                      className={`text-[10px] px-5 py-2 rounded-xl font-black transition-all ${copied === 'atkdesc' ? 'bg-green-500 text-white' : 'bg-white/20 text-white hover:bg-white'}`}
+                      className={`text-[10px] px-5 py-2 rounded-xl font-black transition-all cursor-pointer ${copied === 'atkdesc' ? 'bg-green-500 text-white' : 'bg-white/20 text-white hover:bg-white hover:text-red-600'}`}
                     >
-                      {copied === 'atkdesc' ? '✓ تم النسخ' : '📋 نسخ'}
+                      {copied === 'atkdesc' ? (lang === 'ar' ? '✓ تم النسخ' : '✓ Copied') : (lang === 'ar' ? '📋 نسخ' : '📋 Copy')}
                     </button>
                   </div>
                   <p className="text-xs md:text-sm font-bold text-red-50 leading-loose opacity-80">
-                    {results[0]?.counterAttack?.description || "جاري كتابة وصف استراتيجي يجيب على تساؤلات الجمهور..."}
+                    {results[0]?.counterAttack?.description || (lang === 'ar' ? "جاري كتابة وصف استراتيجي يجيب على تساؤلات الجمهور..." : "Writing strategic description answering audience questions...")}
                   </p>
                 </div>
               </div>
@@ -252,8 +254,8 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
       {(results || []).length === 0 && !loading && (
         <div className="p-32 text-center bg-gray-50/50 rounded-[4rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
           <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-6xl shadow-sm mb-8">🕵️‍♂️</div>
-          <p className="font-black text-gray-400 text-2xl">بانتظار الرابط لسحب أسئلة الجمهور..</p>
-          <p className="text-xs font-bold mt-4 max-w-md mx-auto leading-relaxed">سنقوم بالدخول لتعليقات المنافس، سحب الأسئلة المحيرة، وتوليد أجوبة لها في وصف فيديوك لتتصدر النتائج.</p>
+          <p className="font-black text-gray-400 text-2xl">{lang === 'ar' ? 'بانتظار الرابط لسحب أسئلة الجمهور..' : 'Awaiting URL to extract audience questions..'}</p>
+          <p className="text-xs font-bold mt-4 max-w-md mx-auto leading-relaxed">{lang === 'ar' ? 'سنقوم بالدخول لتعليقات المنافس، سحب الأسئلة المحيرة، وتوليد أجوبة لها في وصف فيديوك لتتصدر النتائج.' : 'We will analyze competitor comments, extract burning questions, and generate answers in your video description to rank at the top.'}</p>
         </div>
       )}
     </div>

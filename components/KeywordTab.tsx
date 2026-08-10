@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Platform, KeywordMetric, ThemeColor, COUNTRIES } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { openDirectAdLink } from '../utils/adHelper';
+import { useLanguage } from '../context/LanguageContext';
 
 const gemini = new GeminiService();
 
@@ -12,6 +12,7 @@ interface KeywordTabProps {
 }
 
 const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
+  const { lang, t, dir } = useLanguage();
   const [query, setQuery] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>(Platform.GOOGLE);
   const [country, setCountry] = useState('GLOBAL');
@@ -26,19 +27,18 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null);
 
   const platformsInfo = [
-    { id: Platform.GOOGLE, name: 'جوجل 🔍', icon: '🔍', color: 'bg-blue-600' },
-    { id: Platform.YOUTUBE, name: 'يوتيوب 🎥', icon: '🎥', color: 'bg-red-600' },
-    { id: Platform.TIKTOK, name: 'تيك توك 🎵', icon: '🎵', color: 'bg-black' },
-    { id: Platform.FACEBOOK, name: 'فيسبوك 👥', icon: '👥', color: 'bg-blue-800' },
-    { id: Platform.INSTAGRAM, name: 'إنستغرام 📸', icon: '📸', color: 'bg-pink-600' },
-    { id: Platform.PINTEREST, name: 'بينتريست 📌', icon: '📌', color: 'bg-red-500' },
+    { id: Platform.GOOGLE, name: lang === 'ar' ? 'جوجل 🔍' : 'Google 🔍', icon: '🔍', color: 'bg-blue-600' },
+    { id: Platform.YOUTUBE, name: lang === 'ar' ? 'يوتيوب 🎥' : 'YouTube 🎥', icon: '🎥', color: 'bg-red-600' },
+    { id: Platform.TIKTOK, name: lang === 'ar' ? 'تيك توك 🎵' : 'TikTok 🎵', icon: '🎵', color: 'bg-black' },
+    { id: Platform.FACEBOOK, name: lang === 'ar' ? 'فيسبوك 👥' : 'Facebook 👥', icon: '👥', color: 'bg-blue-800' },
+    { id: Platform.INSTAGRAM, name: lang === 'ar' ? 'إنستغرام 📸' : 'Instagram 📸', icon: '📸', color: 'bg-pink-600' },
+    { id: Platform.PINTEREST, name: lang === 'ar' ? 'بينتريست 📌' : 'Pinterest 📌', icon: '📌', color: 'bg-red-500' },
   ];
 
   const currentPlat = platformsInfo.find(p => p.id === selectedPlatform) || platformsInfo[0];
 
   const handleSearch = async () => {
     if (!query) return;
-    openDirectAdLink();
     setLoading(true);
     setQuotaExceeded(false);
     setData([]);
@@ -54,7 +54,7 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
       }
     } catch (e: any) {
       if (e.message === "QUOTA_EXHAUSTED") setQuotaExceeded(true);
-      else alert("حدث خطأ في الاتصال بالذكاء الاصطناعي.");
+      else alert(lang === 'ar' ? "حدث خطأ في الاتصال بالذكاء الاصطناعي." : "An error occurred connecting to AI.");
     } finally { setLoading(false); }
   };
 
@@ -88,23 +88,25 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
   };
 
   const getStatus = (strength: number) => {
-    if (strength >= 90) return { label: '🔥 ممتاز جداً', color: 'bg-green-100 text-green-700 border-green-200' };
-    if (strength >= 80) return { label: '🌟 ممتاز', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
-    if (strength >= 65) return { label: '✅ جيد جداً', color: 'bg-blue-100 text-blue-700 border-blue-200' };
-    if (strength >= 50) return { label: '⚖️ متوسط', color: 'bg-amber-100 text-amber-700 border-amber-200' };
-    if (strength >= 30) return { label: '⚠️ ضعيف', color: 'bg-orange-100 text-orange-700 border-orange-200' };
-    return { label: '❌ سيء جداً', color: 'bg-red-100 text-red-700 border-red-200' };
+    if (strength >= 90) return { label: lang === 'ar' ? '🔥 ممتاز جداً' : '🔥 Excellent', color: 'bg-green-100 text-green-700 border-green-200' };
+    if (strength >= 80) return { label: lang === 'ar' ? '🌟 ممتاز' : '🌟 Great', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    if (strength >= 65) return { label: lang === 'ar' ? '✅ جيد جداً' : '✅ Very Good', color: 'bg-blue-100 text-blue-700 border-blue-200' };
+    if (strength >= 50) return { label: lang === 'ar' ? '⚖️ متوسط' : '⚖️ Average', color: 'bg-amber-100 text-amber-700 border-amber-200' };
+    if (strength >= 30) return { label: lang === 'ar' ? '⚠️ ضعيف' : '⚠️ Weak', color: 'bg-orange-100 text-orange-700 border-orange-200' };
+    return { label: lang === 'ar' ? '❌ سيء جداً' : '❌ Poor', color: 'bg-red-100 text-red-700 border-red-200' };
   };
 
+  const isRtl = dir === 'rtl';
+
   return (
-    <div className="max-w-6xl mx-auto p-2 md:p-4 font-cairo text-right">
-      {quotaExceeded && <div className="bg-amber-50 p-4 md:p-6 rounded-2xl mb-6 font-black text-amber-700 border-2 border-amber-100 text-xs sm:text-sm text-center">⏳ حصة المفتاح مستنفدة حالياً. يرجى الانتظار قليلاً قبل المحاولة مرة أخرى.</div>}
+    <div className={`max-w-6xl mx-auto p-2 md:p-4 font-cairo ${isRtl ? 'text-right' : 'text-left'}`} dir={dir}>
+      {quotaExceeded && <div className="bg-amber-50 p-4 md:p-6 rounded-2xl mb-6 font-black text-amber-700 border-2 border-amber-100 text-xs sm:text-sm text-center">{lang === 'ar' ? '⏳ حصة المفتاح مستنفدة حالياً. يرجى الانتظار قليلاً قبل المحاولة مرة أخرى.' : '⏳ API key quota exceeded. Please wait a moment.'}</div>}
 
       <div className="bg-white rounded-2xl md:rounded-[2.5rem] p-6 md:p-12 shadow-sm border border-gray-100 mb-8 transition-all">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-10 gap-4">
-          <h2 className="text-xl md:text-3xl font-black text-gray-900 flex items-center gap-3">🚀 الاستخبارات البحثية</h2>
+          <h2 className="text-xl md:text-3xl font-black text-gray-900 flex items-center gap-3">🚀 {t('keywords.title')}</h2>
           <select value={country} onChange={e => setCountry(e.target.value)} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black outline-none border border-gray-200 cursor-pointer w-full sm:w-auto">
-            {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+            {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.flag} {lang === 'en' && c.code === 'GLOBAL' ? 'Global' : c.name}</option>)}
           </select>
         </div>
 
@@ -113,7 +115,7 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
             type="text" 
             value={query} 
             onChange={e => setQuery(e.target.value)} 
-            placeholder={`نيش أو موضوع في ${currentPlat.name}...`} 
+            placeholder={t('keywords.placeholder')} 
             className="w-full px-6 md:px-8 py-4 md:py-6 rounded-xl md:rounded-3xl bg-gray-50 border-2 border-transparent focus:border-blue-500 font-black text-lg md:text-2xl outline-none shadow-inner" 
           />
           
@@ -128,9 +130,9 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
             <button 
               onClick={handleSearch} 
               disabled={loading} 
-              className="px-8 py-3.5 md:py-5 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-sm md:text-xl shadow-lg hover:bg-black disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-3"
+              className="px-8 py-3.5 md:py-5 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-sm md:text-xl shadow-lg hover:bg-black disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-3 cursor-pointer"
             >
-              {loading ? <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" /> : 'بدء المسح'}
+              {loading ? <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" /> : t('keywords.analyzeBtn')}
             </button>
           </div>
         </div>
@@ -145,27 +147,27 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
                  <div className="flex flex-wrap justify-between items-center mb-4 md:mb-6 gap-2">
                     <div className="flex flex-col">
                       <h3 className="font-black text-md md:text-xl text-blue-600 flex items-center gap-2">
-                        <span>✍️</span> العنوان المقترح ({currentPlat.name})
+                        <span>✍️</span> {lang === 'ar' ? `العنوان المقترح (${currentPlat.name})` : `Suggested Title (${currentPlat.name})`}
                       </h3>
-                      {activeKeyword && <span className="text-[10px] font-bold text-gray-400">مخصص للكلمة: {activeKeyword}</span>}
+                      {activeKeyword && <span className="text-[10px] font-bold text-gray-400">{lang === 'ar' ? `مخصص للكلمة: ${activeKeyword}` : `Customized for: ${activeKeyword}`}</span>}
                     </div>
                     {aiTitle && !genLoading && (
                       <button 
                         onClick={() => handleCopy(aiTitle, 'title')}
                         className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${copiedTitle ? 'bg-green-500 text-white' : 'bg-gray-50 text-gray-500 hover:bg-blue-600 hover:text-white'}`}
                       >
-                        {copiedTitle ? '✅ تم' : '📋 نسخ'}
+                        {copiedTitle ? (lang === 'ar' ? '✅ تم' : '✅ Done') : (lang === 'ar' ? '📋 نسخ' : '📋 Copy')}
                       </button>
                     )}
                  </div>
                  {genLoading ? (
                    <div className="h-24 flex flex-col items-center justify-center gap-2 animate-pulse bg-gray-50 rounded-xl">
                      <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-600 rounded-full animate-spin"></div>
-                     <span className="text-[10px] font-black text-blue-600">الذكاء الاصطناعي يحلل الخوارزميات...</span>
+                     <span className="text-[10px] font-black text-blue-600">{lang === 'ar' ? 'الذكاء الاصطناعي يحلل الخوارزميات...' : 'AI is analyzing algorithms...'}</span>
                    </div>
                  ) : (
                    <div className="bg-blue-50/50 p-4 md:p-6 rounded-xl font-black text-md md:text-xl border-r-4 md:border-r-8 border-blue-600 text-gray-900 shadow-inner min-h-[100px] flex items-center leading-relaxed">
-                     {aiTitle || 'أدخل موضوعاً للبدء'}
+                     {aiTitle || (lang === 'ar' ? 'أدخل موضوعاً للبدء' : 'Enter a topic to start')}
                    </div>
                  )}
               </div>
@@ -175,7 +177,7 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
                  <div className="flex flex-wrap justify-between items-center mb-4 md:mb-6 gap-2">
                     <div className="flex flex-col">
                       <h3 className="font-black text-md md:text-xl text-purple-600 flex items-center gap-2">
-                        <span>📝</span> وصف SEO الاستراتيجي
+                        <span>📝</span> {lang === 'ar' ? 'وصف SEO الاستراتيجي' : 'Strategic SEO Description'}
                       </h3>
                     </div>
                     {aiDescription && !genLoading && (
@@ -183,18 +185,18 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
                         onClick={() => handleCopy(aiDescription, 'desc')}
                         className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${copiedDesc ? 'bg-green-500 text-white' : 'bg-gray-50 text-gray-500 hover:bg-purple-600 hover:text-white'}`}
                       >
-                        {copiedDesc ? '✅ تم' : '📋 نسخ'}
+                        {copiedDesc ? (lang === 'ar' ? '✅ تم' : '✅ Done') : (lang === 'ar' ? '📋 نسخ' : '📋 Copy')}
                       </button>
                     )}
                  </div>
                  {genLoading ? (
                    <div className="h-24 flex flex-col items-center justify-center gap-2 animate-pulse bg-gray-50 rounded-xl">
                      <div className="w-8 h-8 border-4 border-purple-500/20 border-t-purple-600 rounded-full animate-spin"></div>
-                     <span className="text-[10px] font-black text-purple-600">جاري صياغة وصف يتصدر النتائج...</span>
+                     <span className="text-[10px] font-black text-purple-600">{lang === 'ar' ? 'جاري صياغة وصف يتصدر النتائج...' : 'Drafting top-ranking description...'}</span>
                    </div>
                  ) : (
                    <div className="bg-purple-50/50 p-4 md:p-6 rounded-xl font-bold text-[11px] md:text-xs leading-relaxed text-gray-700 border-r-4 md:border-r-8 border-purple-600 shadow-inner min-h-[100px] overflow-y-auto max-h-[150px]">
-                     {aiDescription || 'أدخل موضوعاً للبدء'}
+                     {aiDescription || (lang === 'ar' ? 'أدخل موضوعاً للبدء' : 'Enter a topic to start')}
                    </div>
                  )}
               </div>
@@ -203,10 +205,10 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
            {/* Metrics Table */}
            <div className="bg-white p-6 md:p-10 rounded-2xl md:rounded-[3rem] shadow-sm border border-gray-100 overflow-x-auto">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-10 gap-3">
-                <h3 className="font-black text-lg md:text-2xl flex items-center gap-3">📊 تحليل الخوارزمية واستخراج الفجوات</h3>
+                <h3 className="font-black text-lg md:text-2xl flex items-center gap-3">{lang === 'ar' ? '📊 تحليل الخوارزمية واستخراج الفجوات' : '📊 Algorithm Analysis & Gap Extraction'}</h3>
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest italic flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping"></span>
-                  اضغط على أي كلمة لتوليد محتوى مخصص لها
+                  {lang === 'ar' ? 'اضغط على أي كلمة لتوليد محتوى مخصص لها' : 'Click any keyword to generate custom content'}
                 </span>
               </div>
               <div className="space-y-4">
@@ -230,15 +232,15 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 items-center border-t md:border-t-0 pt-4 md:pt-0">
                           <div className="text-right sm:text-center">
-                            <p className="text-[8px] text-gray-400 font-black uppercase mb-0.5">البحث الشهري</p>
+                            <p className="text-[8px] text-gray-400 font-black uppercase mb-0.5">{lang === 'ar' ? 'البحث الشهري' : 'Monthly Searches'}</p>
                             <p className="font-black text-sm md:text-lg text-gray-800">{it.searchVolume}</p>
                           </div>
                           <div className="text-right sm:text-center">
-                            <p className="text-[8px] text-gray-400 font-black uppercase mb-0.5">المنافسة</p>
+                            <p className="text-[8px] text-gray-400 font-black uppercase mb-0.5">{lang === 'ar' ? 'المنافسة' : 'Competition'}</p>
                             <p className="font-black text-sm md:text-lg text-amber-600">{it.competition}%</p>
                           </div>
                           <div className="text-right sm:text-center">
-                            <p className="text-[8px] text-gray-400 font-black uppercase mb-0.5">الفرصة</p>
+                            <p className="text-[8px] text-gray-400 font-black uppercase mb-0.5">{lang === 'ar' ? 'الفرصة' : 'Opportunity'}</p>
                             <p className="font-black text-sm md:text-lg text-green-600">{it.strength}%</p>
                           </div>
                           <div className="col-span-2 sm:col-span-1 flex justify-center">

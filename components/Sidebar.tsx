@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeColor, APIUsageStats } from '../types';
 import { GeminiService } from '../services/geminiService';
+import { useLanguage } from '../context/LanguageContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -14,6 +15,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpen, onClose }) => {
   const [usage, setUsage] = useState<APIUsageStats>({ usedTokens: 0, limit: 100, percentage: 0 });
   const gemini = new GeminiService();
+  const { t, dir } = useLanguage();
 
   useEffect(() => {
     setUsage(gemini.getUsageStats());
@@ -23,14 +25,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
   }, []);
 
   const menuItems = [
-    { id: 'keywords', label: 'تحليل الكلمات', icon: '🔍' },
-    { id: 'radar', label: 'الرادار الذكي', icon: '📡' },
-    { id: 'competitors', label: 'تحليل المنافسين', icon: '🕵️' },
-    { id: 'audience', label: 'تحليل الجمهور', icon: '👥' },
-    { id: 'tags', label: 'توليد العلامات', icon: '🏷️' },
-    { id: 'thumbnail', label: 'مصمم الصور', icon: '🎨' },
-    { id: 'settings', label: 'إعدادات الـ API', icon: '⚙️' },
-    { id: 'privacy', label: 'سياسة الخصوصية', icon: '📜' },
+    { id: 'keywords', label: t('nav.keywords'), icon: '🔍' },
+    { id: 'radar', label: t('nav.radar'), icon: '📡' },
+    { id: 'competitors', label: t('nav.competitors'), icon: '🕵️' },
+    { id: 'audience', label: t('nav.audience'), icon: '👥' },
+    { id: 'tags', label: t('nav.tags'), icon: '🏷️' },
+    { id: 'thumbnail', label: t('nav.thumbnail'), icon: '🎨' },
+    { id: 'settings', label: t('nav.settings'), icon: '⚙️' },
+    { id: 'privacy', label: t('nav.privacy'), icon: '📜' },
   ];
 
   const themeStyles = {
@@ -40,6 +42,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
   };
 
   const currentTheme = themeStyles[theme];
+  const isRtl = dir === 'rtl';
+
+  const sidebarPosClass = isRtl
+    ? `right-0 border-l ${isOpen ? 'translate-x-0' : 'translate-x-full'}`
+    : `left-0 border-r ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
+
+  const activeBorderClass = isRtl ? 'border-r-4' : 'border-l-4';
+  const textAlignClass = isRtl ? 'text-right' : 'text-left';
 
   return (
     <>
@@ -50,7 +60,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
       />
       
       {/* Sidebar Drawer - Visible fixed only on large screens (lg) */}
-      <div className={`w-72 bg-white h-screen border-l border-gray-100 shadow-2xl fixed right-0 top-0 z-50 transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) transform lg:translate-x-0 ${isOpen ? 'translate-x-0' : 'translate-x-full'} overflow-y-auto flex flex-col`}>
+      <div className={`w-72 bg-white h-screen border-gray-100 shadow-2xl fixed top-0 z-50 transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) transform lg:translate-x-0 ${sidebarPosClass} overflow-y-auto flex flex-col`}>
         <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-white sticky top-0 z-10">
           <h1 className={`text-xl font-black flex items-center gap-2 ${currentTheme.text}`}>🚀 SEO Master</h1>
           <button onClick={onClose} className="lg:hidden text-gray-400 p-2 hover:bg-gray-100 rounded-full transition-colors font-black text-xl">✕</button>
@@ -61,9 +71,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
             <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); if(onClose) onClose(); }}
-              className={`w-full flex items-center gap-4 px-8 py-4 text-right transition-all group ${
+              className={`w-full flex items-center gap-4 px-8 py-4 ${textAlignClass} transition-all group ${
                 activeTab === item.id 
-                  ? `${currentTheme.bg} ${currentTheme.text} border-r-4 ${currentTheme.border} font-bold` 
+                  ? `${currentTheme.bg} ${currentTheme.text} ${activeBorderClass} ${currentTheme.border} font-bold` 
                   : 'text-gray-500 hover:bg-gray-50'
               }`}
             >
@@ -79,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
         <div className="p-6 border-t border-gray-50 mt-auto">
           <div className="bg-gray-50 p-4 rounded-xl">
              <div className="flex justify-between items-center mb-2">
-                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">حصتك اليومية</span>
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('nav.quota')}</span>
                 <span className="text-[9px] font-black text-gray-600">{usage.usedTokens}/{usage.limit}</span>
              </div>
              <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
@@ -96,3 +106,4 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
 };
 
 export default Sidebar;
+

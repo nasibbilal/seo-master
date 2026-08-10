@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { GeminiService } from '../services/geminiService';
 import { ThemeColor, ThumbnailEvaluation } from '../types';
-import { openDirectAdLink } from '../utils/adHelper';
+import { useLanguage } from '../context/LanguageContext';
 
 const gemini = new GeminiService();
 
@@ -16,6 +16,7 @@ interface ThumbnailTabProps {
 }
 
 const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
+  const { lang, t, dir } = useLanguage();
   const [prompt, setPrompt] = useState('');
   const [thumbnailText, setThumbnailText] = useState('');
   const [includeText, setIncludeText] = useState(true);
@@ -30,22 +31,22 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
   const [psychology, setPsychology] = useState('Energy and Activity (Orange/Red)');
 
   const canvasSizes = [
-    { label: '🎥 يوتيوب: صورة مصغرة (16:9)', value: '16:9', type: 'thumbnail' },
-    { label: '🖼️ يوتيوب: غلاف القناة (16:9)', value: '16:9', type: 'channel_art' },
-    { label: '💠 تصميم شعار (Logo) (1:1)', value: '1:1', type: 'logo' },
-    { label: '📱 يوتيوب: Shorts (9:16)', value: '9:16', type: 'thumbnail' },
-    { label: '📌 بينتريست: دبوس طولي (3:4)', value: '3:4', type: 'thumbnail' },
+    { label: lang === 'ar' ? '🎥 يوتيوب: صورة مصغرة (16:9)' : '🎥 YouTube Thumbnail (16:9)', value: '16:9', type: 'thumbnail' },
+    { label: lang === 'ar' ? '🖼️ يوتيوب: غلاف القناة (16:9)' : '🖼️ YouTube Channel Art (16:9)', value: '16:9', type: 'channel_art' },
+    { label: lang === 'ar' ? '💠 تصميم شعار (Logo) (1:1)' : '💠 Channel Logo (1:1)', value: '1:1', type: 'logo' },
+    { label: lang === 'ar' ? '📱 يوتيوب: Shorts (9:16)' : '📱 YouTube Shorts (9:16)', value: '9:16', type: 'thumbnail' },
+    { label: lang === 'ar' ? '📌 بينتريست: دبوس طولي (3:4)' : '📌 Pinterest Pin (3:4)', value: '3:4', type: 'thumbnail' },
   ];
 
   const psychologyOptions = [
-    { label: '💥 طاقة وحيوية (برتقالي/أحمر)', value: 'Energy and Activity (Orange/Red)' },
-    { label: '💼 احترافية وذكاء (أزرق داكن/فضي)', value: 'Professionalism and Intelligence (Dark Blue/Silver)' },
-    { label: '🌿 صحة ونمو (أخضر/أبيض)', value: 'Health and Growth (Green/White)' },
-    { label: '✨ أنوثة وأناقة (وردي/بنفسجي فاتح)', value: 'Femininity and Elegance (Pink/Light Purple)' },
-    { label: '🕵️ غموض وتشويق (أسود/بنفسجي داكن)', value: 'Mystery and Intrigue (Black/Deep Purple)' },
-    { label: '🛡️ ثقة وهدوء (أزرق فاتح/أبيض)', value: 'Trust and Calm (Light Blue/White)' },
-    { label: '👑 فخامة وتميز (ذهبي/أسود)', value: 'Luxury and Prestige (Gold/Black)' },
-    { label: '⚠️ تنبيه واستعجال (أصفر/أسود)', value: 'Urgency and Attention (Yellow/Black)' },
+    { label: lang === 'ar' ? '💥 طاقة وحيوية (برتقالي/أحمر)' : '💥 Energy & Activity (Orange/Red)', value: 'Energy and Activity (Orange/Red)' },
+    { label: lang === 'ar' ? '💼 احترافية وذكاء (أزرق داكن/فضي)' : '💼 Professionalism & Intelligence (Blue/Silver)', value: 'Professionalism and Intelligence (Dark Blue/Silver)' },
+    { label: lang === 'ar' ? '🌿 صحة ونمو (أخضر/أبيض)' : '🌿 Health & Growth (Green/White)', value: 'Health and Growth (Green/White)' },
+    { label: lang === 'ar' ? '✨ أنوثة وأناقة (وردي/بنفسجي فاتح)' : '✨ Elegance & Femininity (Pink/Purple)', value: 'Femininity and Elegance (Pink/Light Purple)' },
+    { label: lang === 'ar' ? '🕵️ غموض وتشويق (أسود/بنفسجي داكن)' : '🕵️ Mystery & Suspense (Black/Dark Purple)', value: 'Mystery and Intrigue (Black/Deep Purple)' },
+    { label: lang === 'ar' ? '🛡️ ثقة وهدوء (أزرق فاتح/أبيض)' : '🛡️ Trust & Calm (Light Blue/White)', value: 'Trust and Calm (Light Blue/White)' },
+    { label: lang === 'ar' ? '👑 فخامة وتميز (ذهبي/أسود)' : '👑 Luxury & Prestige (Gold/Black)', value: 'Luxury and Prestige (Gold/Black)' },
+    { label: lang === 'ar' ? '⚠️ تنبيه واستعجال (أصفر/أسود)' : '⚠️ Urgency & Attention (Yellow/Black)', value: 'Urgency and Attention (Yellow/Black)' },
   ];
 
   const fontOptions = [
@@ -57,10 +58,9 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
 
   const handleGenerate = async () => {
     if (!prompt) {
-      alert("يرجى إدخال وصف الصورة أولاً");
+      alert(lang === 'ar' ? "يرجى إدخال وصف الصورة أولاً" : "Please enter image description first");
       return;
     }
-    openDirectAdLink();
     setLoading(true);
     setErrorMsg(null);
     setResults([]);
@@ -68,11 +68,11 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
     try {
       let finalText = thumbnailText;
       if (includeText) {
-        setStatusMessage('جاري تدقيق النص وتحسين الجذب...');
+        setStatusMessage(lang === 'ar' ? 'جاري تدقيق النص وتحسين الجذب...' : 'Auditing text and enhancing hook...');
         finalText = await gemini.correctAndEnhanceText(thumbnailText || prompt, prompt, addCatchyTitle);
       }
       
-      setStatusMessage('جاري توليد 3 خيارات متنوعة للتصميم...');
+      setStatusMessage(lang === 'ar' ? 'جاري توليد 3 خيارات متنوعة للتصميم...' : 'Generating 3 diverse design options...');
       
       const styles = [
         "Cinematic and highly detailed with dramatic lighting",
@@ -92,9 +92,9 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
       
     } catch (error: any) {
       if (error.message === 'QUOTA_EXCEEDED') {
-        setErrorMsg('انتهت حصة توليد الصور حالياً، لكن يمكنك الاستمرار في استخدام أدوات تحليل الكلمات والوسوم.');
+        setErrorMsg(lang === 'ar' ? 'انتهت حصة توليد الصور حالياً، لكن يمكنك الاستمرار في استخدام أدوات تحليل الكلمات والوسوم.' : 'Image generation quota exceeded for now, but you can continue using keyword and tag analysis tools.');
       } else {
-        setErrorMsg('حدث خطأ أثناء التوليد. يرجى المحاولة لاحقاً.');
+        setErrorMsg(lang === 'ar' ? 'حدث خطأ أثناء التوليد. يرجى المحاولة لاحقاً.' : 'An error occurred during generation. Please try again later.');
       }
     } finally {
       setLoading(false);
@@ -145,12 +145,14 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
     </div>
   );
 
+  const isRtl = dir === 'rtl';
+
   return (
-    <div className="max-w-7xl mx-auto font-cairo text-right px-2 md:px-0">
+    <div className={`max-w-7xl mx-auto font-cairo ${isRtl ? 'text-right' : 'text-left'} px-2 md:px-0`} dir={dir}>
       {/* Input Section */}
       <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-xl border border-gray-100 mb-8 md:mb-10 transition-all">
         <h2 className="text-xl md:text-3xl font-black text-gray-900 mb-8 md:mb-10 flex items-center gap-3">
-          <span>🎨</span> استديو التصميم الذكي (3 خيارات)
+          <span>🎨</span> {t('thumbnail.title')}
         </h2>
 
         {errorMsg && (
@@ -162,12 +164,12 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
         <div className="space-y-6 md:space-y-8">
           {/* Row 1: Prompt */}
           <div className="w-full">
-            <label className="block text-[10px] font-black text-gray-400 mb-2 mr-4 uppercase tracking-widest">وصف المشهد الفني</label>
+            <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">{lang === 'ar' ? 'وصف المشهد الفني' : 'Artistic Scene Description'}</label>
             <textarea
               rows={2}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="مثلاً: رائد فضاء عربي يمسك بعملة بيتكوين في الفضاء، بأسلوب سايبيربانك..."
+              placeholder={lang === 'ar' ? "مثلاً: رائد فضاء عربي يمسك بعملة بيتكوين في الفضاء، بأسلوب سايبيربانك..." : "e.g. Arab astronaut holding bitcoin in space, cyberpunk style..."}
               className="w-full px-6 md:px-10 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] bg-gray-50 border-2 border-transparent text-black font-black text-base md:text-xl outline-none focus:bg-white focus:border-blue-500 shadow-inner transition-all resize-none"
             />
           </div>
@@ -175,30 +177,30 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
           {/* Row 2: Text & Psychology */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className={`relative ${!includeText ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-              <label className="block text-[10px] font-black text-gray-400 mb-2 mr-4 uppercase tracking-widest">النص المكتوب على التصميم</label>
+              <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">{lang === 'ar' ? 'النص المكتوب على التصميم' : 'Text Overlay'}</label>
               <input
                 type="text"
                 value={thumbnailText}
                 onChange={(e) => setThumbnailText(e.target.value)}
                 className="w-full px-6 md:px-8 py-4 md:py-5 rounded-2xl border-2 border-gray-100 bg-white font-black text-gray-900 outline-none focus:border-blue-500 shadow-sm transition-all"
-                placeholder="أدخل النص هنا..."
+                placeholder={lang === 'ar' ? "أدخل النص هنا..." : "Enter text here..."}
               />
               <div className="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between px-2 gap-4">
                 <label className="flex items-center gap-3 cursor-pointer group">
-                  <input type="checkbox" checked={addCatchyTitle} onChange={(e) => setAddCatchyTitle(e.target.checked)} className="w-5 h-5 rounded border-gray-300 accent-blue-600 transition-all" />
-                  <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-blue-600 transition-colors">تحسين العنوان تلقائياً</span>
+                  <input type="checkbox" checked={addCatchyTitle} onChange={(e) => setAddCatchyTitle(e.target.checked)} className="w-5 h-5 rounded border-gray-300 accent-blue-600 transition-all cursor-pointer" />
+                  <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-blue-600 transition-colors">{lang === 'ar' ? 'تحسين العنوان تلقائياً' : 'Auto-enhance title'}</span>
                 </label>
                 <div onClick={() => setIncludeText(!includeText)} className="flex items-center gap-3 cursor-pointer group">
-                  <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-blue-600">إظهار النص؟</span>
+                  <span className="text-[10px] font-black text-gray-500 uppercase group-hover:text-blue-600">{lang === 'ar' ? 'إظهار النص؟' : 'Show Text?'}</span>
                   <div className={`w-12 h-6 rounded-full relative transition-all ${includeText ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${includeText ? 'right-7' : 'right-1'}`} />
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${includeText ? (isRtl ? 'right-7' : 'left-7') : (isRtl ? 'right-1' : 'left-1')}`} />
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="w-full">
-              <label className="block text-[10px] font-black text-gray-400 mb-2 mr-4 uppercase tracking-widest">سيكولوجية الألوان</label>
+              <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">{lang === 'ar' ? 'سيكولوجية الألوان' : 'Color Psychology'}</label>
               <select 
                 value={psychology}
                 onChange={(e) => setPsychology(e.target.value)}
@@ -214,7 +216,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
           {/* Row 3: Font, Size & Action */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
              <div className="w-full">
-                <label className="block text-[10px] font-black text-gray-400 mb-2 mr-4 uppercase tracking-widest">نوع الخط العربي</label>
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">{lang === 'ar' ? 'نوع الخط' : 'Font Style'}</label>
                 <select 
                   value={selectedFont}
                   onChange={(e) => setSelectedFont(e.target.value)}
@@ -227,7 +229,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
              </div>
 
              <div className="w-full">
-                <label className="block text-[10px] font-black text-gray-400 mb-2 mr-4 uppercase tracking-widest">مقاس التصميم</label>
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">{lang === 'ar' ? 'مقاس التصميم' : 'Canvas Size'}</label>
                 <select 
                   onChange={(e) => {
                     const s = canvasSizes.find(sz => sz.label === e.target.value);
@@ -242,14 +244,14 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
              <button 
               onClick={handleGenerate} 
               disabled={loading} 
-              className={`${themeClasses} w-full text-white px-6 py-4 md:py-5 rounded-2xl font-black disabled:opacity-50 shadow-lg flex items-center justify-center gap-3 transform active:scale-95 h-[60px] md:h-[68px] transition-all relative group overflow-hidden`}
+              className={`${themeClasses} w-full text-white px-6 py-4 md:py-5 rounded-2xl font-black disabled:opacity-50 shadow-lg flex items-center justify-center gap-3 transform active:scale-95 h-[60px] md:h-[68px] transition-all relative group overflow-hidden cursor-pointer`}
             >
               {loading ? (
                 <div className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
                   <span className="text-xl md:text-2xl group-hover:rotate-12 transition-transform">✨</span>
-                  <span className="text-sm md:text-base">توليد 3 خيارات احترافية</span>
+                  <span className="text-sm md:text-base">{lang === 'ar' ? 'توليد 3 خيارات احترافية' : 'Generate 3 Pro Options'}</span>
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                 </>
               )}
@@ -266,7 +268,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
             <div className="w-16 h-16 md:w-20 md:h-20 border-4 md:border-8 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-8" />
             <h3 className="text-white text-xl md:text-3xl font-black mb-4 px-4">{statusMessage}</h3>
             <p className="text-slate-400 font-bold max-w-md mx-auto leading-relaxed text-xs md:text-sm px-6">
-              الذكاء الاصطناعي يقوم الآن بتحليل الوصف المكتوب ومطابقته مع سيكولوجية الألوان المختارة لإنتاج أفضل النتائج..
+              {lang === 'ar' ? 'الذكاء الاصطناعي يقوم الآن بتحليل الوصف المكتوب ومطابقته مع سيكولوجية الألوان المختارة لإنتاج أفضل النتائج..' : 'AI is analyzing description and matching color psychology for optimal output..'}
             </p>
           </div>
         )}
@@ -279,7 +281,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                 <div className="relative aspect-video bg-slate-100 overflow-hidden">
                    <img src={res.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt={`Option ${idx + 1}`} />
                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full font-black text-[10px] shadow-lg border border-white/50 uppercase">
-                      خيار {idx + 1}
+                      {lang === 'ar' ? `خيار ${idx + 1}` : `Option ${idx + 1}`}
                    </div>
                 </div>
 
@@ -289,19 +291,19 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                     <div className="mb-6 md:mb-8 flex-1">
                       <div className="flex justify-between items-end mb-6 border-b border-gray-100 pb-4">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">التقييم العام</span>
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{lang === 'ar' ? 'التقييم العام' : 'Overall Score'}</span>
                           {renderStars(res.evaluation.score)}
                         </div>
                         <span className="text-2xl md:text-3xl font-black text-gray-900 leading-none">{res.evaluation.score}<span className="text-xs text-gray-400">/10</span></span>
                       </div>
 
                       <div className="space-y-4 mb-6">
-                        <MetricBar label="وضوح النص" value={res.evaluation.readability} color="bg-blue-500" />
-                        <MetricBar label="التأثير البصري" value={res.evaluation.visualImpact} color="bg-purple-500" />
+                        <MetricBar label={lang === 'ar' ? "وضوح النص" : "Text Readability"} value={res.evaluation.readability} color="bg-blue-500" />
+                        <MetricBar label={lang === 'ar' ? "التأثير البصري" : "Visual Impact"} value={res.evaluation.visualImpact} color="bg-purple-500" />
                       </div>
 
                       <div className="bg-white p-4 md:p-5 rounded-2xl md:rounded-3xl border border-blue-50 shadow-inner relative mt-4">
-                        <span className="absolute -top-3 right-5 bg-white px-2 text-[10px] font-black text-blue-500 uppercase">ملاحظة الذكاء الاصطناعي</span>
+                        <span className="absolute -top-3 right-5 bg-white px-2 text-[10px] font-black text-blue-500 uppercase">{lang === 'ar' ? 'ملاحظة الذكاء الاصطناعي' : 'AI Critique'}</span>
                         <p className="text-[11px] md:text-xs text-blue-900 font-bold leading-relaxed italic">
                           "{res.evaluation.critique}"
                         </p>
@@ -313,9 +315,9 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
 
                   <button 
                     onClick={() => downloadImage(res.url, idx)}
-                    className="w-full py-4 md:py-5 rounded-[1.5rem] md:rounded-[2rem] bg-gray-900 hover:bg-black text-white font-black text-xs md:text-sm flex items-center justify-center gap-3 transition-all shadow-xl shadow-gray-200 transform active:scale-95"
+                    className="w-full py-4 md:py-5 rounded-[1.5rem] md:rounded-[2rem] bg-gray-900 hover:bg-black text-white font-black text-xs md:text-sm flex items-center justify-center gap-3 transition-all shadow-xl shadow-gray-200 transform active:scale-95 cursor-pointer"
                   >
-                    <span className="text-xl">📥</span> تحميل التصميم عالي الدقة
+                    <span className="text-xl">📥</span> {lang === 'ar' ? 'تحميل التصميم عالي الدقة' : 'Download High-Res Design'}
                   </button>
                 </div>
               </div>
@@ -327,8 +329,8 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
       {results.length === 0 && !loading && (
         <div className="text-center p-12 md:p-24 bg-gray-50/50 rounded-[3rem] md:rounded-[4rem] border-4 border-dashed border-gray-200 flex flex-col items-center justify-center">
           <div className="w-16 h-16 md:w-24 md:h-24 bg-white rounded-full flex items-center justify-center text-4xl md:text-5xl mb-6 shadow-sm grayscale opacity-50">🖼️</div>
-          <p className="font-black text-gray-400 text-lg md:text-xl">استعد لتصميم صورك المصغرة!</p>
-          <p className="text-gray-300 font-bold mt-2 text-sm md:text-base max-w-sm mx-auto">ادخل وصف المشهد أعلاه لتوليد 3 خيارات احترافية تناسب هوية علامتك التجارية.</p>
+          <p className="font-black text-gray-400 text-lg md:text-xl">{lang === 'ar' ? 'استعد لتصميم صورك المصغرة!' : 'Ready to design your thumbnails!'}</p>
+          <p className="text-gray-300 font-bold mt-2 text-sm md:text-base max-w-sm mx-auto">{lang === 'ar' ? 'ادخل وصف المشهد أعلاه لتوليد 3 خيارات احترافية تناسب هوية علامتك التجارية.' : 'Enter scene description above to generate 3 pro options matching your brand.'}</p>
         </div>
       )}
 
