@@ -154,7 +154,7 @@ const AudienceTab: React.FC<AudienceTabProps> = ({ theme, daysCount, activeChann
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Interests Card */}
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 text-center relative overflow-hidden h-[240px] flex flex-col justify-center">
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 text-center relative overflow-hidden flex flex-col justify-center">
                <div className="absolute top-4 right-6 text-gray-400 font-black text-[10px] uppercase">{lang === 'ar' ? 'اهتمامات الجمهور' : 'Audience Interests'}</div>
                <div className="flex flex-wrap justify-center gap-2 mt-4">
                   {(insight?.demographics?.interests || []).length > 0 ? (
@@ -168,17 +168,29 @@ const AudienceTab: React.FC<AudienceTabProps> = ({ theme, daysCount, activeChann
             </div>
 
             {/* Engagement Time Card */}
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 text-center relative h-[240px] flex flex-col items-center justify-center">
-               <div className="absolute top-4 right-6 text-gray-400 font-black text-[10px] uppercase">{lang === 'ar' ? 'وقت التفاعل' : 'Engagement Time'}</div>
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 text-center relative flex flex-col items-center justify-center">
+               <div className="absolute top-4 right-6 text-gray-400 font-black text-[10px] uppercase">{lang === 'ar' ? 'أوقات التفاعل (الذروة)' : 'Engagement Times'}</div>
                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-3xl mb-4 shadow-sm">⏰</div>
-               <p className="text-2xl font-black text-gray-900">{insight?.engagementTimes || (lang === 'ar' ? 'غير محدد' : 'Not Specified')}</p>
+               {insight?.engagementTimesShorts || insight?.engagementTimesLong ? (
+                 <div className="space-y-2 w-full text-center">
+                   {insight?.engagementTimesShorts && <p className="text-sm font-black text-gray-900 bg-gray-50 p-2 rounded-xl"><span className="text-red-500 mr-1">{lang === 'ar' ? 'شورتس:' : 'Shorts:'}</span> {insight.engagementTimesShorts}</p>}
+                   {insight?.engagementTimesLong && <p className="text-sm font-black text-gray-900 bg-gray-50 p-2 rounded-xl"><span className="text-blue-500 mr-1">{lang === 'ar' ? 'طويل:' : 'Long:'}</span> {insight.engagementTimesLong}</p>}
+                 </div>
+               ) : (
+                 <p className="text-2xl font-black text-gray-900">{insight?.engagementTimes || (lang === 'ar' ? 'غير محدد' : 'Not Specified')}</p>
+               )}
             </div>
 
-            {/* Age Group Card */}
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 text-center relative h-[240px] flex flex-col items-center justify-center">
-               <div className="absolute top-4 right-6 text-gray-400 font-black text-[10px] uppercase">{lang === 'ar' ? 'الفئة العمرية' : 'Age Group'}</div>
-               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm text-blue-600">👤</div>
-               <p className="text-2xl font-black text-gray-900">{insight?.demographics?.ageRange || (lang === 'ar' ? 'غير محدد' : 'Not Specified')}</p>
+            {/* Audience Size & Country Card */}
+            <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-gray-50 text-center relative flex flex-col items-center justify-center">
+               <div className="absolute top-4 right-6 text-gray-400 font-black text-[10px] uppercase">{lang === 'ar' ? 'حجم ونوع الجمهور' : 'Size & Countries'}</div>
+               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-3xl mb-4 shadow-sm text-blue-600">🌍</div>
+               <p className="text-2xl font-black text-gray-900 mb-2">{insight?.demographics?.audienceSize || (lang === 'ar' ? 'غير محدد' : 'Not Specified')}</p>
+               <div className="flex flex-wrap justify-center gap-1">
+                 {(insight?.demographics?.topCountries || []).slice(0, 3).map((c, i) => (
+                   <span key={i} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded-md font-bold">{c}</span>
+                 ))}
+               </div>
             </div>
           </div>
 

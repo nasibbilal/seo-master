@@ -19,6 +19,55 @@ export class GeminiService {
     return new GoogleGenAI({ apiKey });
   }
 
+  private getCache<T>(key: string): T | null {
+    try {
+      const cachedStr = localStorage.getItem(key);
+      if (!cachedStr) return null;
+      const parsed = JSON.parse(cachedStr);
+      if (parsed.timestamp && (Date.now() - parsed.timestamp) < 24 * 60 * 60 * 1000) {
+        return parsed.data as T;
+      }
+      localStorage.removeItem(key);
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  private setCache(key: string, data: any) {
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        timestamp: Date.now(),
+        data
+      }));
+    } catch (e) {
+      this.clearOldCaches();
+      try {
+        localStorage.setItem(key, JSON.stringify({
+          timestamp: Date.now(),
+          data
+        }));
+      } catch (e2) {
+        // ignore
+      }
+    }
+  }
+
+  private clearOldCaches() {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('cache_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+      // ignore
+    }
+  }
+
   private async throttle() {
     const now = Date.now();
     const elapsed = now - this.lastRequestTime;
@@ -153,42 +202,185 @@ export class GeminiService {
     }
   }
 
-  async analyzeKeywords(query: string, platform: Platform, country: string): Promise<KeywordMetric[]> {
+  async analyzeKeywords(query: string, platform: Platform, country: string): Promise<any> {
+    const cacheKey = `cache_keywords_outlier_v1_${platform}_${country}_${query}`;
+    const cached = this.getCache<any>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
-      const ai = this.getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        config: { 
-          responseMimeType: "application/json", 
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                keyword: { type: Type.STRING },
-                searchVolume: { type: Type.STRING },
-                competition: { type: Type.NUMBER },
-                strength: { type: Type.NUMBER },
-                trend: { type: Type.STRING, description: "up, down, stable" }
-              },
-              required: ["keyword", "searchVolume", "competition", "strength", "trend"]
+      const ytConfig = this.getPlatformConfig('youtube');
+
+      if (platform === Platform.YOUTUBE && ytConfig) {
+        try {
+          // 1. Search top 10 videos
+          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${ytConfig}`);
+          const searchData = await searchRes.json();
+          if (searchData.items && searchData.items.length > 0) {
+            const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+            
+            // 2. Get video details (tags, stats)
+            const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${ytConfig}`);
+            const videoData = await videoRes.json();
+            
+            const channelIds = [...new Set(videoData.items.map((v: any) => v.snippet.channelId))].join(',');
+            
+            // 3. Get channel details (subs)
+            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${ytConfig}`);
+            const channelData = await channelRes.json();
+            
+            const channelMap: Record<string, number> = {};
+            channelData.items?.forEach((c: any) => {
+              channelMap[c.id] = parseInt(c.statistics.subscriberCount || '0', 10);
+            });
+
+            // 4. Outlier Analysis
+            const now = Date.now();
+            const tagScores: Record<string, { score: number, views: number, count: number }> = {};
+            let outlierContext = "Top Competitors Analysis (Outlier Strategy):\n";
+
+            videoData.items?.forEach((vid: any) => {
+              const views = parseInt(vid.statistics.viewCount || '0', 10);
+              const subs = channelMap[vid.snippet.channelId] || 1;
+              const publishedAt = new Date(vid.snippet.publishedAt).getTime();
+              const daysOld = Math.max((now - publishedAt) / (1000 * 3600 * 24), 1);
+              
+              const viewSubRatio = views / Math.max(subs, 1);
+              const outlierScore = viewSubRatio / daysOld;
+
+              outlierContext += `- Title: "${vid.snippet.title}", Views: ${views}, Subs: ${subs}, Age: ${Math.round(daysOld)} days, OutlierScore: ${outlierScore.toFixed(2)}, Tags: ${(vid.snippet.tags || []).slice(0, 5).join(', ')}\n`;
+
+              const tags = vid.snippet.tags || [];
+              tags.forEach((tag: string) => {
+                const t = tag.toLowerCase();
+                if (!tagScores[t]) tagScores[t] = { score: 0, views: 0, count: 0 };
+                tagScores[t].score += outlierScore;
+                tagScores[t].views += views;
+                tagScores[t].count += 1;
+              });
+            });
+
+            // 5. Format Tags
+            const sortedTags = Object.keys(tagScores)
+              .map(t => ({ tag: t, ...tagScores[t] }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 15);
+
+            const maxScore = Math.max(...sortedTags.map(t => t.score), 1);
+
+            const keywords: KeywordMetric[] = sortedTags.map(t => {
+              const strength = Math.min(Math.round((t.score / maxScore) * 100), 100);
+              const competition = Math.max(100 - strength, 10);
+              const formatNumber = (num: number) => {
+                if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                return num.toString();
+              };
+              return {
+                keyword: t.tag,
+                searchVolume: formatNumber(t.views),
+                competition,
+                strength,
+                trend: 'up'
+              };
+            });
+
+            // 6. Generate Title & Desc using Gemini based on context
+            let suggestedTitle = "";
+            let suggestedDesc = "";
+            try {
+              const ai = this.getAI();
+              const prompt = `You are a YouTube SEO expert. I extracted the top ranking videos for "${query}". I performed an "Outlier Analysis" comparing their views, subs, and age. Data:\n${outlierContext}\n\nTask:\n1. Analyze why high outlier videos succeeded.\n2. Generate a highly clickable, viral title (in Arabic) to outrank them.\n3. Generate a strategic SEO description (in Arabic) incorporating the best tags.\nReturn ONLY a valid JSON: {"title": "...", "description": "..."}`;
+              
+              const aiRes = await ai.models.generateContent({
+                model: "gemini-3.6-flash",
+                config: { responseMimeType: "application/json" },
+                contents: prompt
+              });
+              const parsedAI = JSON.parse(aiRes.text || "{}");
+              suggestedTitle = parsedAI.title || "";
+              suggestedDesc = parsedAI.description || "";
+            } catch(e) {
+              console.error("AI Generation failed during outlier strategy", e);
             }
+
+            const result = {
+              keywords: keywords.length > 0 ? keywords : await this.getGeminiKeywordsFallback(query, platform, country),
+              suggestedTitle,
+              suggestedDesc
+            };
+
+            this.setCache(cacheKey, result);
+            return result;
           }
-        },
-        contents: `Real-time SEO analysis for "${query}" on ${platform} in ${country}. Analyze trends for the current month. provide keywords that dominate search results.`
-      });
-      return (JSON.parse(response.text || "[]") ?? []) as KeywordMetric[];
+        } catch (e) {
+          console.error("YouTube API Outlier Strategy failed, falling back to Gemini:", e);
+        }
+      }
+
+      // Fallback
+      const result = await this.getGeminiKeywordsFallback(query, platform, country);
+      this.setCache(cacheKey, result);
+      return result;
     });
+  }
+
+  private async getGeminiKeywordsFallback(query: string, platform: Platform, country: string): Promise<KeywordMetric[]> {
+    const ai = this.getAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-3.6-flash",
+      config: { 
+        responseMimeType: "application/json", 
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              keyword: { type: Type.STRING },
+              searchVolume: { type: Type.STRING },
+              competition: { type: Type.NUMBER },
+              strength: { type: Type.NUMBER },
+              trend: { type: Type.STRING, description: "up, down, stable" }
+            },
+            required: ["keyword", "searchVolume", "competition", "strength", "trend"]
+          }
+        }
+      },
+      contents: `Real-time SEO analysis for "${query}" on ${platform} in ${country}. Analyze trends for the current month. provide keywords that dominate search results.`
+    });
+    return (JSON.parse(response.text || "[]") ?? []) as KeywordMetric[];
   }
 
   // Fixing missing fetchRadarTrends method for RadarTab.tsx
   async fetchRadarTrends(category: string, country: string, days: number, platform: Platform): Promise<RadarInsight[]> {
+    const cacheKey = `cache_radar_v2_${platform}_${country}_${category}_${days}`;
+    const cached = this.getCache<RadarInsight[]>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
+      let liveData = "";
+      const ytConfig = this.getPlatformConfig('youtube');
+      
+      if ((platform === Platform.YOUTUBE || platform === Platform.GOOGLE) && ytConfig) {
+        try {
+          const region = country !== 'GLOBAL' ? country : 'US';
+          const searchRes = await fetch(
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&regionCode=${region}&type=video&maxResults=10&order=viewCount&publishedAfter=${new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()}&key=${ytConfig}`
+          );
+          const searchData = await searchRes.json();
+          if (searchData.items && searchData.items.length > 0) {
+            const items = searchData.items.map((i: any) => i.snippet.title);
+            liveData = `Live YouTube Data top videos in ${country} past ${days} days: ${items.join(', ')}.`;
+          }
+        } catch (e) {
+          console.error("YouTube Radar fetch error", e);
+        }
+      }
+
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
         config: { 
-          responseMimeType: "application/json", 
+          responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
             items: {
@@ -208,13 +400,20 @@ export class GeminiService {
             }
           }
         },
-        contents: `Real-time trend analysis for ${category} on ${platform} in ${country} over the last ${days} days. Identify trending topics and potential content gaps.`
+        contents: `${liveData} Real-time trend analysis for ${category} on ${platform} in ${country} over the last ${days} days. Identify trending topics and potential content gaps. MUST RETURN CONTENT IN ARABIC (except id/platform codes).`
       });
-      return (JSON.parse(response.text || "[]") ?? []) as RadarInsight[];
+
+      const result = this.cleanAndParseJSON(response.text) as RadarInsight[];
+      this.setCache(cacheKey, result);
+      return result;
     });
   }
 
   async generatePlatformContent(keywords: string[], platform: Platform, topic: string): Promise<{ title: string, description: string }> {
+    const cacheKey = `cache_content_${platform}_${topic}_${keywords.join(',')}`;
+    const cached = this.getCache<{ title: string, description: string }>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       
@@ -239,22 +438,98 @@ export class GeminiService {
       });
       
       const parsed = JSON.parse(response.text || '{"title":"","description":""}');
-      return {
+      const result = {
         title: parsed.title || "",
         description: parsed.description || ""
       };
+      this.setCache(cacheKey, result);
+      return result;
     });
   }
 
   async generateTags(topic: string, platform: Platform, country: string): Promise<string[]> {
+    const cacheKey = `cache_tags_outlier_v1_${platform}_${country}_${topic}`;
+    const cached = this.getCache<string[]>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
+      const ytConfig = this.getPlatformConfig('youtube');
+
+      if (platform === Platform.YOUTUBE && ytConfig) {
+        try {
+          // 1. Search top 15 videos to get a broad range of tags
+          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&maxResults=15&key=${ytConfig}`);
+          const searchData = await searchRes.json();
+          
+          if (searchData.items && searchData.items.length > 0) {
+            const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+            
+            // 2. Get video details (tags, stats)
+            const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${ytConfig}`);
+            const videoData = await videoRes.json();
+            
+            const channelIds = [...new Set(videoData.items.map((v: any) => v.snippet.channelId))].join(',');
+            
+            // 3. Get channel details (subs)
+            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${ytConfig}`);
+            const channelData = await channelRes.json();
+            
+            const channelMap: Record<string, number> = {};
+            channelData.items?.forEach((c: any) => {
+              channelMap[c.id] = parseInt(c.statistics.subscriberCount || '0', 10);
+            });
+
+            // 4. Outlier Analysis for Tags
+            const now = Date.now();
+            const tagScores: Record<string, { score: number, count: number }> = {};
+
+            videoData.items?.forEach((vid: any) => {
+              const views = parseInt(vid.statistics.viewCount || '0', 10);
+              const subs = channelMap[vid.snippet.channelId] || 1;
+              const publishedAt = new Date(vid.snippet.publishedAt).getTime();
+              const daysOld = Math.max((now - publishedAt) / (1000 * 3600 * 24), 1);
+              
+              const viewSubRatio = views / Math.max(subs, 1);
+              const outlierScore = viewSubRatio / daysOld;
+
+              const tags = vid.snippet.tags || [];
+              tags.forEach((tag: string) => {
+                const t = tag.toLowerCase().trim();
+                if (!t) return;
+                if (!tagScores[t]) tagScores[t] = { score: 0, count: 0 };
+                // Add outlier score to the tag
+                tagScores[t].score += outlierScore;
+                tagScores[t].count += 1;
+              });
+            });
+
+            // 5. Sort Tags by Score and get top 20
+            const sortedTags = Object.keys(tagScores)
+              .map(t => ({ tag: t, score: tagScores[t].score, count: tagScores[t].count }))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 20)
+              .map(t => t.tag);
+
+            if (sortedTags.length > 0) {
+              this.setCache(cacheKey, sortedTags);
+              return sortedTags;
+            }
+          }
+        } catch (e) {
+          console.error("YouTube API Tags Outlier Strategy failed, falling back to Gemini:", e);
+        }
+      }
+
+      // Fallback or Non-YouTube platforms (Gemini Estimation)
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
         config: { responseMimeType: "application/json" },
         contents: `Provide 20 high-converting viral tags for ${topic} on ${platform} in ${country} as a JSON string array.`
       });
-      return (JSON.parse(response.text || "[]") ?? []) as string[];
+      const result = (JSON.parse(response.text || "[]") ?? []) as string[];
+      this.setCache(cacheKey, result);
+      return result;
     });
   }
 
@@ -337,183 +612,169 @@ export class GeminiService {
   }
 
   async getAudienceInsights(category: string, platform: Platform, country: string, days: number): Promise<AudienceInsight> {
+    const cacheKey = `cache_audience_v2_${platform}_${country}_${category}_${days}`;
+    const cached = this.getCache<AudienceInsight>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
-      // Fetch platform configuration keys saved in settings
       const ytConfig = this.getPlatformConfig('youtube');
-      const googleConfig = this.getPlatformConfig('google_search');
-      const tiktokConfig = this.getPlatformConfig('tiktok');
-      const metaConfig = this.getPlatformConfig('meta');
-      const pinConfig = this.getPlatformConfig('pinterest');
 
-      const ytKey = ytConfig.youtube_key || ytConfig.youtube_key_2;
-      const googleToken = googleConfig.google_token;
-      const tiktokSecret = tiktokConfig.tiktok_secret;
-      const metaToken = metaConfig.meta_token;
-      const pinToken = pinConfig.pinterest_token;
-
-      let realApiContext = "";
-
-      // Perform real API call to YouTube if YouTube or Google platform is selected and key exists
-      if ((platform === Platform.YOUTUBE || platform === Platform.GOOGLE) && ytKey) {
+      if (platform === Platform.YOUTUBE && ytConfig) {
         try {
+          // 1. Search for top videos in the niche and region
           const searchRes = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&type=video&maxResults=10&order=viewCount&key=${ytKey}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&regionCode=${country !== 'Global' ? country : 'US'}&type=video&maxResults=25&order=viewCount&key=${ytConfig}`
           );
           const searchData = await searchRes.json();
 
           if (searchData.items && searchData.items.length > 0) {
             const videoIds = searchData.items.map((item: any) => item.id?.videoId).filter(Boolean).join(',');
-            if (videoIds) {
-              const videoRes = await fetch(
-                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${ytKey}`
-              );
-              const videoData = await videoRes.json();
+            
+            // 2. Fetch details including contentDetails (duration) and statistics
+            const videoRes = await fetch(
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${ytConfig}`
+            );
+            const videoData = await videoRes.json();
 
-              if (videoData.items) {
-                const videoSummaries = videoData.items.map((v: any) => ({
+            // Calculate total views for audience size estimation
+            let totalViews = 0;
+            const videoAnalysis: any[] = [];
+            const topVideoIdsForComments: string[] = [];
+
+            if (videoData.items) {
+              videoData.items.forEach((v: any, index: number) => {
+                const views = parseInt(v.statistics?.viewCount || '0', 10);
+                totalViews += views;
+                
+                // Keep top 3 for comments
+                if (index < 3) topVideoIdsForComments.push(v.id);
+
+                videoAnalysis.push({
                   title: v.snippet?.title,
-                  channel: v.snippet?.channelTitle,
-                  views: v.statistics?.viewCount,
-                  likes: v.statistics?.likeCount,
-                  comments: v.statistics?.commentCount,
+                  duration: v.contentDetails?.duration,
                   publishedAt: v.snippet?.publishedAt,
-                  tags: (v.snippet?.tags || []).slice(0, 5)
-                }));
+                  views,
+                });
+              });
+            }
 
-                realApiContext += `\n[LIVE YOUTUBE DATA API V3 METRICS FOR "${category}"]:\n` + JSON.stringify(videoSummaries);
+            // 3. Fetch comments from top videos to understand audience interests
+            let allComments: string[] = [];
+            for (const vid of topVideoIdsForComments) {
+              try {
+                const commentRes = await fetch(
+                  `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${vid}&maxResults=15&order=relevance&key=${ytConfig}`
+                );
+                const commentData = await commentRes.json();
+                if (commentData.items) {
+                  commentData.items.forEach((c: any) => {
+                    const text = c.snippet?.topLevelComment?.snippet?.textOriginal;
+                    if (text) allComments.push(text);
+                  });
+                }
+              } catch (e) {
+                // Ignore comment fetch errors for specific videos
               }
             }
+
+            const formatNumber = (num: number) => {
+              if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+              if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+              return num.toString();
+            };
+
+            const estimatedAudienceSize = formatNumber(totalViews);
+
+            // 4. Pass data to Gemini for synthesis
+            const prompt = `You are an elite YouTube Audience Analyst. Analyze this raw YouTube API data for the topic "${category}" in region "${country}".
+            
+            Video Data (Duration PT..S is usually Short, PT..M is Long. publishedAt shows when they post):
+            ${JSON.stringify(videoAnalysis)}
+            
+            Audience Comments (Analyze their tone, pain points, and interests):
+            ${JSON.stringify(allComments.slice(0, 40))}
+            
+            Total Active Niche Audience Size: ~${estimatedAudienceSize} views across top 25 videos.
+            
+            Task:
+            1. Find the most common posting hours for Shorts vs Long videos based on 'publishedAt' fields.
+            2. Infer the audience's age range, interests, and dominant countries based on the language/context of the comments and the region "${country}".
+            3. Return ONLY a valid JSON matching this schema:
+            {
+              "demographics": {
+                "ageRange": "e.g. 18-24 سنوات",
+                "interests": ["interest 1", "interest 2"],
+                "audienceSize": "${estimatedAudienceSize} مشاهد نشط",
+                "topCountries": ["Country 1", "Country 2"]
+              },
+              "engagementTimes": "General best time",
+              "engagementTimesShorts": "e.g. 6:00 م - 8:00 م",
+              "engagementTimesLong": "e.g. 2:00 م - 4:00 م",
+              "contentFormats": [
+                { "format": "Shorts", "performanceScore": 95, "description": "Highly engaging" }
+              ],
+              "currentMonthTopics": [ { "topic": "topic name", "volume": "High" } ],
+              "topSearchQueries": [ { "topic": "query", "competition": 80 } ]
+            }`;
+
+            const ai = this.getAI();
+            const response = await ai.models.generateContent({
+              model: "gemini-3.6-flash",
+              config: { responseMimeType: "application/json" },
+              contents: prompt
+            });
+
+            const parsed = this.cleanAndParseJSON(response.text);
+            
+            // Ensure fields exist
+            const result: AudienceInsight = {
+              demographics: {
+                ageRange: parsed.demographics?.ageRange || "18-35",
+                interests: parsed.demographics?.interests || [category],
+                audienceSize: parsed.demographics?.audienceSize || `${estimatedAudienceSize} مهتم`,
+                topCountries: parsed.demographics?.topCountries || [country],
+              },
+              engagementTimes: parsed.engagementTimes || "6 PM - 9 PM",
+              engagementTimesShorts: parsed.engagementTimesShorts,
+              engagementTimesLong: parsed.engagementTimesLong,
+              contentFormats: parsed.contentFormats || [
+                { format: "Shorts (Vertical)", performanceScore: 90, description: "Fast growth" },
+                { format: "Long Form", performanceScore: 75, description: "Deep value" }
+              ],
+              currentMonthTopics: parsed.currentMonthTopics || [{ topic: category, volume: "High" }],
+              topSearchQueries: parsed.topSearchQueries || [{ topic: category, competition: 50 }]
+            };
+
+            this.setCache(cacheKey, result);
+            return result;
           }
-        } catch (err) {
-          console.warn("YouTube API call in Audience Analysis:", err);
+        } catch (e) {
+          console.error("YouTube API Audience Strategy failed, falling back to Gemini:", e);
         }
       }
 
-      // Record connected keys status for prompt context
-      const activeKeys = [];
-      if (ytKey) activeKeys.push(`YouTube API Key Connected (${ytKey.substring(0, 6)}...)`);
-      if (googleToken) activeKeys.push(`Google Search Token Connected (${googleToken.substring(0, 6)}...)`);
-      if (tiktokSecret) activeKeys.push(`TikTok Secret Connected`);
-      if (metaToken) activeKeys.push(`Meta Access Token Connected`);
-      if (pinToken) activeKeys.push(`Pinterest Token Connected`);
-
-      if (activeKeys.length > 0) {
-        realApiContext += `\n[CONNECTED SETTINGS API KEYS]: ${activeKeys.join(', ')}`;
-      }
-
+      // Fallback or Non-YouTube platforms (Gemini Estimation)
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
         config: { 
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              demographics: {
-                type: Type.OBJECT,
-                properties: {
-                  ageRange: { type: Type.STRING },
-                  interests: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING }
-                  }
-                },
-                required: ["ageRange", "interests"]
-              },
-              engagementTimes: { type: Type.STRING },
-              contentFormats: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    format: { type: Type.STRING },
-                    performanceScore: { type: Type.NUMBER },
-                    description: { type: Type.STRING }
-                  },
-                  required: ["format", "performanceScore", "description"]
-                }
-              },
-              currentMonthTopics: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    topic: { type: Type.STRING },
-                    volume: { type: Type.STRING }
-                  },
-                  required: ["topic", "volume"]
-                }
-              },
-              topSearchQueries: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    topic: { type: Type.STRING },
-                    competition: { type: Type.NUMBER }
-                  },
-                  required: ["topic", "competition"]
-                }
-              }
-            },
-            required: ["demographics", "engagementTimes", "contentFormats", "currentMonthTopics", "topSearchQueries"]
-          }
+          responseMimeType: "application/json"
         },
-        contents: `Analyze audience behavior, demographics, peak engagement times, and top trending content/queries for interest/category "${category}" on platform "${platform}" in country "${country}" over the last ${days} days.
-Use the connected platform API keys and real-time ground metrics provided below to output accurate, realistic, and highly specific data in Arabic.
-
-${realApiContext}
-
-Return JSON with exact structure.`
+        contents: `Real-time audience insight analysis for ${category} on ${platform} in ${country} over ${days} days. Include best posting times for Shorts/Reels vs Long videos, estimated audience size and top countries. Return ONLY valid JSON in Arabic. Schema: {"demographics": {"ageRange": "...", "interests": ["..."], "audienceSize": "...", "topCountries": ["..."]}, "engagementTimes": "...", "engagementTimesShorts": "...", "engagementTimesLong": "...", "contentFormats": [{"format": "...", "performanceScore": 90, "description": "..."}], "currentMonthTopics": [{"topic": "...", "volume": "..."}], "topSearchQueries": [{"topic": "...", "competition": 90}]}`
       });
 
       const parsed = this.cleanAndParseJSON(response.text);
-
-      const demographics = {
-        ageRange: parsed.demographics?.ageRange || `18-34 سنة (بنسبة 68% من المهتمين بـ ${category})`,
-        interests: (Array.isArray(parsed.demographics?.interests) && parsed.demographics.interests.length > 0)
-          ? parsed.demographics.interests
-          : [`محتوى ${category} العالي الجودة`, `أحدث تريندات ${category}`, `أغاني ومقاطع ${category}`, `تجارب ومراجعات حصرية`]
-      };
-
-      const engagementTimes = parsed.engagementTimes || `أوقات الذروة والتفاعل: 8:00 مساءً - 11:30 مساءً (توقيت محلي)`;
-
-      const contentFormats = (Array.isArray(parsed.contentFormats) && parsed.contentFormats.length > 0)
-        ? parsed.contentFormats
-        : [
-            { format: `فيديوهات قصيرة (Shorts / Reels) حول ${category}`, performanceScore: 94, description: `تتمتع بأعلى معدل وصول واستقطاب فوري للمشاهدين` },
-            { format: `مقاطع طويلة وشاملة تغطي ${category}`, performanceScore: 86, description: `تزيد من متوسط مدة المشاهدة وبناء ثقة الجمهور` },
-            { format: `بث مباشر وتفاعلي مع المتابعين`, performanceScore: 78, description: `متاحة للرد على أسئلة الجمهور وتعزيز الولاء` }
-          ];
-
-      const currentMonthTopics = (Array.isArray(parsed.currentMonthTopics) && parsed.currentMonthTopics.length > 0)
-        ? parsed.currentMonthTopics
-        : [
-            { topic: `أحدث إصدارات وتريندات ${category}`, volume: "320K+ تفاعل" },
-            { topic: `أهم نصائح وحيل في ${category}`, volume: "210K+ تفاعل" },
-            { topic: `تجارب ومراجعات حصرية لـ ${category}`, volume: "160K+ تفاعل" }
-          ];
-
-      const topSearchQueries = (Array.isArray(parsed.topSearchQueries) && parsed.topSearchQueries.length > 0)
-        ? parsed.topSearchQueries
-        : [
-            { topic: `أفضل محتوى ${category} 2026`, competition: 88 },
-            { topic: `جديد ${category} هذا الأسبوع`, competition: 79 },
-            { topic: `كيفية البدء في ${category}`, competition: 65 },
-            { topic: `تحميل وتنسيق ${category}`, competition: 72 }
-          ];
-
-      return {
-        demographics,
-        engagementTimes,
-        contentFormats,
-        currentMonthTopics,
-        topSearchQueries
-      };
+      this.setCache(cacheKey, parsed);
+      return parsed as AudienceInsight;
     });
   }
 
   async auditVideoContent(videoInput: string, platforms: Platform[]): Promise<VideoAuditResult> {
+    const targetPlatform = platforms && platforms.length > 0 ? platforms[0] : Platform.YOUTUBE;
+    const cacheKey = `cache_audit_${targetPlatform}_${videoInput}`;
+    const cached = this.getCache<VideoAuditResult>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
@@ -522,7 +783,7 @@ Return JSON with exact structure.`
         contents: `SEO Audit for video: ${videoInput}. Return JSON.`
       });
       const parsed = JSON.parse(response.text || "{}");
-      return {
+      const result = {
         optimizationPlan: parsed.optimizationPlan || [],
         criticalFlaws: parsed.criticalFlaws || [],
         seoScore: parsed.seoScore || 0,
@@ -530,12 +791,18 @@ Return JSON with exact structure.`
         retentionEstimate: parsed.retentionEstimate || "",
         platformStandardsMatch: parsed.platformStandardsMatch || []
       };
+      this.setCache(cacheKey, result);
+      return result;
     });
   }
 
   async analyzeCompetitor(url: string, platforms: Platform[]): Promise<EnhancedCompetitorData[]> {
+    const targetPlatform = platforms && platforms.length > 0 ? platforms[0] : Platform.YOUTUBE;
+    const cacheKey = `cache_competitor_${targetPlatform}_${url}`;
+    const cached = this.getCache<EnhancedCompetitorData[]>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
-      const targetPlatform = platforms && platforms.length > 0 ? platforms[0] : Platform.YOUTUBE;
 
       // Fetch saved platform keys from settings
       const ytConfig = this.getPlatformConfig('youtube');
@@ -759,7 +1026,7 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
         description: item.counterAttack?.description || `في هذا الفيديو نجيب حصرياً على جميع الأسئلة والتساؤلات التي غفل عنها المنافس في فيديو ${fetchedVideoTitle || 'المنافس'}، ونقدم لك خطوات عمل بديلة ومجانية 100% تناسب المبتدئين بالكامل.`
       };
 
-      const result: EnhancedCompetitorData = {
+      const resultObj: EnhancedCompetitorData = {
         platform: targetPlatform,
         competitorName,
         topKeywords,
@@ -774,20 +1041,44 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
         counterAttack
       };
 
-      return [result];
+      const result = [resultObj];
+      this.setCache(cacheKey, result);
+      return result;
     });
   }
 
   async checkContentGap(trendTitle: string): Promise<GapAnalysis> {
+    const cacheKey = `cache_gap_v2_${trendTitle}`;
+    const cached = this.getCache<GapAnalysis>(cacheKey);
+    if (cached) return cached;
+
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        config: { responseMimeType: "application/json" },
-        contents: `Is there a content gap for "${trendTitle}"? Return GapAnalysis JSON.`
+        config: { 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              isGap: { type: Type.BOOLEAN },
+              message: { type: Type.STRING },
+              urgency: { type: Type.STRING },
+              exploitKeywords: { 
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              suggestedTitle: { type: Type.STRING },
+              suggestedDesc: { type: Type.STRING }
+            },
+            required: ["isGap", "message", "urgency", "exploitKeywords", "suggestedTitle", "suggestedDesc"]
+          }
+        },
+        contents: `Is there a content gap for "${trendTitle}"? You are an elite SEO marketer. Provide a catchy ranking title, strategic SEO description, and exploit keywords. MUST RETURN ALL TEXT FIELDS IN ARABIC.`
       });
-      const parsed = JSON.parse(response.text || "{}");
-      return {
+
+      const parsed = this.cleanAndParseJSON(response.text);
+      const result = {
         isGap: !!parsed.isGap,
         message: parsed.message || "",
         urgency: parsed.urgency || "",
@@ -795,6 +1086,9 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
         suggestedTitle: parsed.suggestedTitle || "",
         suggestedDesc: parsed.suggestedDesc || ""
       };
+      
+      this.setCache(cacheKey, result);
+      return result;
     });
   }
 

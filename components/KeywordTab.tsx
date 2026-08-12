@@ -46,11 +46,19 @@ const KeywordTab: React.FC<KeywordTabProps> = ({ theme, daysCount }) => {
     setAiDescription('');
     setActiveKeyword(null);
     try {
-      const results = await gemini.analyzeKeywords(query, selectedPlatform, country);
-      setData(results);
-      if (results.length > 0) {
-        // توليد تلقائي باستخدام الكلمة الأولى والموضوع الرئيسي
-        await generateContent(results.map(r => r.keyword), query);
+      const results = await gemini.analyzeKeywords(query, selectedPlatform, country) as any;
+      if (Array.isArray(results)) {
+        setData(results);
+        if (results.length > 0) {
+          await generateContent(results.map(r => r.keyword), query);
+        }
+      } else {
+        setData(results.keywords || []);
+        if (results.suggestedTitle) setAiTitle(results.suggestedTitle);
+        if (results.suggestedDesc) setAiDescription(results.suggestedDesc);
+        if (!results.suggestedTitle && results.keywords && results.keywords.length > 0) {
+          await generateContent(results.keywords.map((r: any) => r.keyword), query);
+        }
       }
     } catch (e: any) {
       if (e.message === "QUOTA_EXHAUSTED") setQuotaExceeded(true);

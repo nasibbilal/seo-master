@@ -113,8 +113,12 @@ export interface AudienceInsight {
   demographics: {
     ageRange: string;
     interests: string[];
+    audienceSize?: string;
+    topCountries?: string[];
   };
   engagementTimes: string;
+  engagementTimesShorts?: string;
+  engagementTimesLong?: string;
   contentFormats: {
     format: string;
     performanceScore: number;
