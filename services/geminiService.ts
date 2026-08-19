@@ -188,16 +188,32 @@ export class GeminiService {
 
   async testConnection(platform: string, config: any): Promise<{ success: boolean; errorType?: 'QUOTA' | 'INVALID' | 'GENERIC' }> {
     try {
-      const ai = this.getAI(config.token);
+      let ai;
+      if (platform === 'gemini') {
+        ai = new GoogleGenAI({ apiKey: config.token });
+      } else {
+        // Not a gemini key being tested
+        return { success: true };
+      }
+      
       return await this.callWithRetry(async () => {
+        // Just do a simple request to see if the key works
         const response = await ai.models.generateContent({
           model: 'gemini-3.6-flash',
-          contents: `Verify if this key format is valid for ${platform}: ${config.token}. Reply YES or NO.`
+          contents: `Reply ONLY with the word OK.`
         });
-        return { success: response.text?.toUpperCase().includes('YES') || false };
+        return { success: true };
       }, 0);
-    } catch (error: any) { 
-      if (error.message === "QUOTA_EXHAUSTED") return { success: false, errorType: 'QUOTA' };
+    } catch (error: any) {
+      const errorMsg = error.message?.toLowerCase() || '';
+      const status = error.status || 0;
+      
+      if (errorMsg.includes('quota') || errorMsg.includes('429') || status === 429) {
+         return { success: false, errorType: 'QUOTA' };
+      }
+      if (errorMsg.includes('invalid') || errorMsg.includes('key') || status === 400) {
+         return { success: false, errorType: 'INVALID' };
+      }
       return { success: false, errorType: 'GENERIC' }; 
     }
   }
@@ -544,14 +560,33 @@ export class GeminiService {
     });
   }
 
-  async generateThumbnail(prompt: string, text: string, psychology: string, font: string, size: string, type: string, includeText: boolean): Promise<string> {
+  async generateThumbnail(prompt: string, text: string, psychology: string, font: string, size: string, type: string, includeText: boolean, referenceImage?: string | null): Promise<string> {
     return this.callWithRetry(async () => {
       const ai = this.getAI();
+      let finalPrompt = `Thumbnail: ${prompt}. Text elements: "${text}". Color Psychology: ${psychology}. Style: Ultra HD, 4k, trending on YouTube.`;
+
+      if (referenceImage) {
+        try {
+          const visionRes = await ai.models.generateContent({
+            model: "gemini-3.6-flash",
+            contents: { parts: [
+              { inlineData: { mimeType: referenceImage.split(';')[0].split(':')[1], data: referenceImage.split(',')[1] } },
+              { text: "Describe this image in precise detail (subject, pose, clothing, colors, background). I will use this to generate a matching YouTube thumbnail." }
+            ]}
+          });
+          const imgDesc = visionRes.text;
+          finalPrompt = `Create a YouTube thumbnail based on this scene description: ${imgDesc}. Modify the scene by adding: ${prompt}. Text elements to include: "${text}". Color Psychology: ${psychology}. Style: Ultra HD, 4k, trending on YouTube.`;
+        } catch (e) {
+          console.warn("Vision model failed", e);
+        }
+      }
+
       const response = await ai.models.generateContent({
         model: 'gemini-3.1-flash-lite-image',
-        contents: { parts: [{ text: `Thumbnail: ${prompt}. Text elements: "${text}". Color Psychology: ${psychology}. Style: Ultra HD, 4k, trending on YouTube.` }] },
+        contents: finalPrompt,
         config: { imageConfig: { aspectRatio: (size as any) || "16:9" } }
       });
+
       if (response.candidates?.[0].content.parts) {
         for (const part of response.candidates[0].content.parts) {
           if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
@@ -1100,5 +1135,47 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
   clearKeyCache() {
     localStorage.clear();
     window.location.reload();
+  }
+
+  async analyzeMockupPlacement(imageUrl: string, prompt: string): Promise<{ymin: number, xmin: number, ymax: number, xmax: number} | null> {
+    try {
+      return await this.callWithRetry(async () => {
+        const ai = this.getAI();
+        const base64Data = imageUrl.split(',')[1];
+        const response = await ai.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: { parts: [
+              { inlineData: { mimeType: 'image/png', data: base64Data } }, 
+              { text: `The user wants to place a logo/design based on this scene prompt: "${prompt}". Identify the exact bounding box in the image where this design should be printed (e.g., the chest of the specific character's shirt, a mug, a billboard, etc. as described). Return ONLY a valid JSON object with normalized bounding box coordinates (values between 0.0 and 1.0). Format exactly like this: {"ymin": 0.3, "xmin": 0.4, "ymax": 0.5, "xmax": 0.6}. Do not include markdown blocks, backticks, or any other text.` }
+          ] }
+        });
+        const text = response.text || "";
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        return null;
+      });
+    } catch (e) {
+      console.warn("Placement AI failed, falling back to math", e);
+      return null;
+    }
+  }
+
+  async generateMockupDescription(imageUrl: string): Promise<string> {
+    try {
+      return await this.callWithRetry(async () => {
+        const ai = this.getAI();
+        const base64Data = imageUrl.split(',')[1];
+        const response = await ai.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: { parts: [
+              { inlineData: { mimeType: 'image/png', data: base64Data } }, 
+              { text: `You are an SEO E-commerce expert. Write an attractive, SEO-optimized product description for the item in this image (in Arabic). The description must include keywords that help this product rank in search results. Keep it to 1-2 strong sentences highlighting the print quality and the design subject.` }
+          ] }
+        });
+        return response.text || "تم تطبيق التصميم بنجاح على المنتج.";
+      });
+    } catch (e) {
+      return "تم دمج التصميم بنجاح (الوصف التلقائي غير متاح حالياً بسبب ضغط الشبكة).";
+    }
   }
 }

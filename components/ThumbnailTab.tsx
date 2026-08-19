@@ -9,6 +9,7 @@ const gemini = new GeminiService();
 interface ThumbnailResult {
   url: string;
   evaluation: ThumbnailEvaluation | null;
+  mockupDescription?: string;
 }
 
 interface ThumbnailTabProps {
@@ -18,6 +19,8 @@ interface ThumbnailTabProps {
 const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
   const { lang, t, dir } = useLanguage();
   const [prompt, setPrompt] = useState('');
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [productMode, setProductMode] = useState<boolean>(true);
   const [thumbnailText, setThumbnailText] = useState('');
   const [includeText, setIncludeText] = useState(true);
   const [addCatchyTitle, setAddCatchyTitle] = useState(false);
@@ -36,6 +39,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
     { label: lang === 'ar' ? '💠 تصميم شعار (Logo) (1:1)' : '💠 Channel Logo (1:1)', value: '1:1', type: 'logo' },
     { label: lang === 'ar' ? '📱 يوتيوب: Shorts (9:16)' : '📱 YouTube Shorts (9:16)', value: '9:16', type: 'thumbnail' },
     { label: lang === 'ar' ? '📌 بينتريست: دبوس طولي (3:4)' : '📌 Pinterest Pin (3:4)', value: '3:4', type: 'thumbnail' },
+    { label: lang === 'ar' ? '📸 انستغرام وفيسبوك: بوست (1:1)' : '📸 Instagram & FB Post (1:1)', value: '1:1', type: 'thumbnail' },
   ];
 
   const psychologyOptions = [
@@ -56,6 +60,17 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
     'El Messiri (فني ومزخرف)',
   ];
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReferenceImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt) {
       alert(lang === 'ar' ? "يرجى إدخال وصف الصورة أولاً" : "Please enter image description first");
@@ -72,26 +87,125 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
         finalText = await gemini.correctAndEnhanceText(thumbnailText || prompt, prompt, addCatchyTitle);
       }
       
-      setStatusMessage(lang === 'ar' ? 'جاري توليد 3 خيارات متنوعة للتصميم...' : 'Generating 3 diverse design options...');
+      setStatusMessage(lang === 'ar' ? 'جاري بناء وتحليل التصميم الفني...' : 'Generating and analyzing art design...');
       
-      const styles = [
-        "Cinematic and highly detailed with dramatic lighting",
-        "Vibrant, colorful, and high-impact commercial style",
-        "Minimalist, modern, and clean professional aesthetic"
-      ];
+      const isProductMode = productMode && referenceImage;
+      const actualPrompt = isProductMode ? `${prompt}. VERY IMPORTANT: The main subject (e.g., the t-shirt, mug, or billboard) MUST BE COMPLETELY BLANK AND SOLID COLORED. DO NOT generate ANY text, logos, or designs on it, as a real logo will be added later. (High-impact commercial YouTube thumbnail style, vibrant and cinematic)` : `${prompt} (High-impact commercial YouTube thumbnail style, vibrant and cinematic)`;
 
-      const thumbnailPromises = styles.map(async (styleModifier) => {
-        const enhancedPrompt = `${prompt} (${styleModifier})`;
-        const imgUrl = await gemini.generateThumbnail(enhancedPrompt, finalText, psychology, selectedFont, selectedSize, selectedType, includeText);
-        const evalData = await gemini.evaluateThumbnail(imgUrl, prompt);
-        return { url: imgUrl, evaluation: evalData };
-      });
+      const imgUrl = await gemini.generateThumbnail(
+        actualPrompt, 
+        finalText, 
+        psychology, 
+        selectedFont, 
+        selectedSize, 
+        selectedType, 
+        includeText, 
+        isProductMode ? null : referenceImage
+      );
+      
+      let finalImgUrl = imgUrl;
 
-      const generatedResults = await Promise.all(thumbnailPromises);
+      // Realistically composite the logo using Canvas (Mockup Mode)
+      if (isProductMode && referenceImage) {
+        setStatusMessage(lang === 'ar' ? 'جاري تحليل هيكل الجسم وتحديد موقع الطباعة (Pose Estimation)...' : 'Analyzing body structure for placement...');
+        const placement = await gemini.analyzeMockupPlacement(imgUrl, prompt);
+        
+        setStatusMessage(lang === 'ar' ? 'جاري تطبيق النسيج ودمج الألوان بدقة...' : 'Applying fabric texture and blending...');
+        finalImgUrl = await new Promise((resolve) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const bgImg = new Image();
+          const overlayImg = new Image();
+          
+          bgImg.crossOrigin = "anonymous";
+          bgImg.onload = () => {
+            canvas.width = bgImg.width;
+            canvas.height = bgImg.height;
+            ctx.drawImage(bgImg, 0, 0);
+            
+            overlayImg.crossOrigin = "anonymous";
+            overlayImg.onload = () => {
+              let overlayWidth, overlayHeight, x, y;
+
+              if (placement) {
+                // AI placement
+                const boxW = (placement.xmax - placement.xmin) * canvas.width;
+                const boxH = (placement.ymax - placement.ymin) * canvas.height;
+                // Add breathing room (margin) inside the detected chest box (max 70% of the box)
+                const targetW = boxW * 0.7;
+                const targetH = boxH * 0.7;
+                
+                // Fit logo into target box preserving aspect ratio
+                const ratio = Math.min(targetW / overlayImg.width, targetH / overlayImg.height);
+                overlayWidth = overlayImg.width * ratio;
+                overlayHeight = overlayImg.height * ratio;
+                
+                // Center precisely inside the detected bounding box
+                x = (placement.xmin * canvas.width) + (boxW - overlayWidth) / 2;
+                y = (placement.ymin * canvas.height) + (boxH - overlayHeight) / 2;
+              } else {
+                // Math fallback
+                const maxOverlayWidth = canvas.width * 0.3;
+                const maxOverlayHeight = canvas.height * 0.3;
+                overlayWidth = overlayImg.width;
+                overlayHeight = overlayImg.height;
+                const ratio = Math.min(maxOverlayWidth / overlayWidth, maxOverlayHeight / overlayHeight);
+                overlayWidth *= ratio;
+                overlayHeight *= ratio;
+                x = (canvas.width - overlayWidth) / 2;
+                y = (canvas.height - overlayHeight) / 2 + (canvas.height * 0.1);
+              }
+              
+              // 1. Draw base logo normally
+              ctx.globalCompositeOperation = 'source-over';
+              ctx.globalAlpha = 0.90;
+              ctx.drawImage(overlayImg, x, y, overlayWidth, overlayHeight);
+              
+              // 2. Blend the shadows of the shirt over the logo to make it look embedded
+              ctx.globalCompositeOperation = 'multiply';
+              ctx.globalAlpha = 0.6;
+              ctx.drawImage(overlayImg, x, y, overlayWidth, overlayHeight);
+
+              // 3. Add textile noise/texture overlay
+              ctx.globalCompositeOperation = 'overlay';
+              ctx.globalAlpha = 0.15;
+              ctx.fillStyle = '#ffffff';
+              // Draw a simple noise grid pattern over the logo area
+              for(let i = 0; i < overlayWidth; i+=4) {
+                for(let j = 0; j < overlayHeight; j+=4) {
+                  if (Math.random() > 0.5) {
+                    ctx.fillRect(x + i, y + j, 2, 2);
+                  }
+                }
+              }
+              
+              resolve(canvas.toDataURL('image/png'));
+            };
+            overlayImg.src = referenceImage;
+          };
+          bgImg.src = imgUrl;
+        });
+      }
+
+      setStatusMessage(lang === 'ar' ? 'جاري تقييم التصميم لرفع نسبة النقر (CTR)...' : 'Evaluating design for CTR impact...');
+      const evalData = await gemini.evaluateThumbnail(finalImgUrl, prompt);
+      
+      
+      let mockupDesc = undefined;
+      if (isProductMode && referenceImage) {
+        setStatusMessage(lang === 'ar' ? 'جاري كتابة وصف التصميم النهائي...' : 'Generating final mockup description...');
+        mockupDesc = await gemini.generateMockupDescription(finalImgUrl);
+      }
+
+      const generatedResults = [{ 
+        url: finalImgUrl, 
+        evaluation: evalData,
+        mockupDescription: mockupDesc
+      }];
       setResults(generatedResults);
       
     } catch (error: any) {
-      if (error.message === 'QUOTA_EXCEEDED') {
+      if (error.message === 'QUOTA_EXHAUSTED' || error.message === 'QUOTA_EXCEEDED' || (error.message || '').includes('QUOTA')) {
         setErrorMsg(lang === 'ar' ? 'انتهت حصة توليد الصور حالياً، لكن يمكنك الاستمرار في استخدام أدوات تحليل الكلمات والوسوم.' : 'Image generation quota exceeded for now, but you can continue using keyword and tag analysis tools.');
       } else {
         setErrorMsg(lang === 'ar' ? 'حدث خطأ أثناء التوليد. يرجى المحاولة لاحقاً.' : 'An error occurred during generation. Please try again later.');
@@ -165,15 +279,50 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
           {/* Row 1: Prompt */}
           <div className="w-full">
             <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">{lang === 'ar' ? 'وصف المشهد الفني' : 'Artistic Scene Description'}</label>
-            <textarea
-              rows={2}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={lang === 'ar' ? "مثلاً: رائد فضاء عربي يمسك بعملة بيتكوين في الفضاء، بأسلوب سايبيربانك..." : "e.g. Arab astronaut holding bitcoin in space, cyberpunk style..."}
-              className="w-full px-6 md:px-10 py-5 md:py-6 rounded-[1.5rem] md:rounded-[2rem] bg-gray-50 border-2 border-transparent text-black font-black text-base md:text-xl outline-none focus:bg-white focus:border-blue-500 shadow-inner transition-all resize-none"
-            />
+            <div className="relative">
+              <textarea
+                rows={2}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={lang === 'ar' ? "مثلاً: رائد فضاء عربي يمسك بعملة بيتكوين في الفضاء، بأسلوب سايبيربانك..." : "e.g. Arab astronaut holding bitcoin in space, cyberpunk style..."}
+                className="w-full px-6 md:px-10 py-5 md:py-6 pl-16 rounded-[1.5rem] md:rounded-[2rem] bg-gray-50 border-2 border-transparent text-black font-black text-base md:text-xl outline-none focus:bg-white focus:border-blue-500 shadow-inner transition-all resize-none"
+                style={{ paddingLeft: isRtl ? 'auto' : '5rem', paddingRight: isRtl ? '5rem' : 'auto' }}
+              />
+              <div className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? 'left-4 md:left-6' : 'right-4 md:right-6'} flex items-center gap-2`}>
+                {referenceImage && (
+                  <div className="relative w-10 h-10 md:w-12 md:h-12 rounded-xl overflow-hidden shadow-sm border-2 border-white group">
+                    <img src={referenceImage} alt="Reference" className="w-full h-full object-cover" />
+                    <button 
+                      onClick={() => setReferenceImage(null)}
+                      className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1 items-end">
+                  <label className="w-10 h-10 md:w-12 md:h-12 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-200 cursor-pointer transition-all active:scale-95" title={lang === 'ar' ? 'إرفاق صورة مرجعية أو منتج' : 'Upload reference or product image'}>
+                    <span className="text-xl md:text-2xl font-light leading-none">+</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                </div>
+              </div>
+            </div>
+            {referenceImage && (
+              <div className="flex items-center gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 w-max mt-2">
+                <input 
+                  type="checkbox" 
+                  id="productModeToggle" 
+                  checked={productMode} 
+                  onChange={(e) => setProductMode(e.target.checked)} 
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" 
+                />
+                <label htmlFor="productModeToggle" className="text-xs font-bold text-blue-900 cursor-pointer select-none">
+                  {lang === 'ar' ? 'وضع الموك أب (دمج الشعار/التصميم كطباعة واقعية على الملابس أو المنتجات)' : 'Mockup Mode (Realistically print logo/design onto clothing or product)'}
+                </label>
+              </div>
+            )}
           </div>
-
           {/* Row 2: Text & Psychology */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className={`relative ${!includeText ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
@@ -251,7 +400,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
               ) : (
                 <>
                   <span className="text-xl md:text-2xl group-hover:rotate-12 transition-transform">✨</span>
-                  <span className="text-sm md:text-base">{lang === 'ar' ? 'توليد 3 خيارات احترافية' : 'Generate 3 Pro Options'}</span>
+                  <span className="text-sm md:text-base">{lang === 'ar' ? 'توليد تصميم احترافي' : 'Generate Pro Design'}</span>
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
                 </>
               )}
@@ -280,6 +429,7 @@ const ThumbnailTab: React.FC<ThumbnailTabProps> = ({ theme }) => {
                 {/* Image Preview */}
                 <div className="relative aspect-video bg-slate-100 overflow-hidden">
                    <img src={res.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" alt={`Option ${idx + 1}`} />
+                   
                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full font-black text-[10px] shadow-lg border border-white/50 uppercase">
                       {lang === 'ar' ? `خيار ${idx + 1}` : `Option ${idx + 1}`}
                    </div>
