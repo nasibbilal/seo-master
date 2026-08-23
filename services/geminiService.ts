@@ -525,7 +525,7 @@ export class GeminiService {
             }
           }
         },
-        contents: `${liveData} Real-time trend analysis for ${category} on ${platform} in ${country} over the last ${days} days. Identify trending topics and potential content gaps. MUST RETURN CONTENT IN ARABIC (except id/platform codes).`
+        contents: `${liveData} Real-time trend analysis for ${category} on ${platform} in ${country} over the last ${days} days. Identify trending topics and potential content gaps. CRITICAL: Detect the language of "${category}" (e.g. English, French, Arabic, Spanish). Return all text fields (title, category, searchVolume, audienceSize) strictly 100% in THAT SAME DETECTED LANGUAGE.`
       });
 
       const result = this.cleanAndParseJSON(response.text) as RadarInsight[];
@@ -535,7 +535,7 @@ export class GeminiService {
   }
 
   async generatePlatformContent(keywords: string[], platform: Platform, topic: string): Promise<{ title: string, description: string }> {
-    const cacheKey = `cache_content_v2_${platform}_${topic}_${keywords.join(',')}`;
+    const cacheKey = `cache_content_v3_${platform}_${topic}_${keywords.join(',')}`;
     const cached = this.getCache<{ title: string, description: string }>(cacheKey);
     if (cached) return cached;
 
@@ -546,13 +546,13 @@ export class GeminiService {
       const systemInstruction = `You are an elite SEO expert for ${platform}. 
       Your goal is to dominate search results for year ${currentYear} using the provided keywords: ${keywords.join(', ')}.
       
-      CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
-      Automatically detect the language of the topic/keywords ("${topic}", "${keywords.join(', ')}") (e.g., English, French, Arabic, Spanish, German, etc.).
+      STRICT LANGUAGE LOCKING RULE (MANDATORY):
+      Automatically detect the EXACT language of the topic/keywords ("${topic}", "${keywords.join(', ')}") (e.g., English, French, Arabic, Spanish, German, etc.).
       YOU MUST GENERATE BOTH 'title' AND 'description' 100% IN THAT EXACT SAME DETECTED LANGUAGE.
       - If input topic/keywords are English -> Output 100% English.
       - If input topic/keywords are French -> Output 100% French.
       - If input topic/keywords are Arabic -> Output 100% Arabic.
-      Do not mix or translate languages.
+      NEVER mix languages under any circumstances.
 
       Platform-Specific Rules:
       - YouTube: Create high CTR titles with curiosity gaps and description rich with keywords in the first 2 lines.
@@ -568,7 +568,7 @@ export class GeminiService {
           responseMimeType: "application/json",
           systemInstruction: systemInstruction 
         },
-        contents: `Topic: "${topic}". Primary Keywords: ${keywords[0]}. Secondary: ${keywords.slice(1).join(', ')}. Generate the best SEO title and description for ${currentYear} strictly in the detected input language.`
+        contents: `Topic: "${topic}". Primary Keywords: ${keywords[0]}. Secondary: ${keywords.slice(1).join(', ')}. Generate the best SEO title and description for ${currentYear} strictly 100% in the detected input language.`
       });
       
       const parsed = JSON.parse(response.text || '{"title":"","description":""}');
@@ -587,7 +587,7 @@ export class GeminiService {
     exploitKeywords: string[],
     currentYear: number = new Date().getFullYear()
   ): Promise<string> {
-    const cacheKey = `cache_expanded_desc_v2_${topic}_${primaryKeyword}_${currentYear}`;
+    const cacheKey = `cache_expanded_desc_v3_${topic}_${primaryKeyword}_${currentYear}`;
     const cached = this.getCache<string>(cacheKey);
     if (cached) return cached;
 
@@ -597,13 +597,13 @@ export class GeminiService {
         model: "gemini-3.6-flash",
         contents: `You are an elite multi-platform SEO copywriter for ${currentYear}.
 
-CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+STRICT LANGUAGE LOCKING RULE (MANDATORY):
 Automatically detect the language of the input topic ("${topic}") and primary keyword ("${primaryKeyword}") (e.g., English, French, Arabic, Spanish, German, etc.).
 YOU MUST WRITE THE ENTIRE 2-3 PARAGRAPH SEO DESCRIPTION 100% IN THAT EXACT SAME DETECTED LANGUAGE.
 - If input topic/keyword is English -> 100% English.
 - If input topic/keyword is French -> 100% French.
 - If input topic/keyword is Arabic -> 100% Arabic.
-- Do not mix or translate into other languages.
+- Do NOT mix or translate into other languages under any circumstances.
 
 Topic: "${topic}"
 Primary Keyword: "${primaryKeyword}"
@@ -625,7 +625,7 @@ Return ONLY the full 2-3 paragraph SEO description 100% in the detected input la
   }
 
   async generateCuriosityHook(topic: string, primaryKeyword: string): Promise<string> {
-    const cacheKey = `cache_curiosity_hook_v2_${topic}_${primaryKeyword}`;
+    const cacheKey = `cache_curiosity_hook_v3_${topic}_${primaryKeyword}`;
     const cached = this.getCache<string>(cacheKey);
     if (cached) return cached;
 
@@ -635,7 +635,7 @@ Return ONLY the full 2-3 paragraph SEO description 100% in the detected input la
         model: "gemini-3.6-flash",
         contents: `You are a High-CTR thumbnail copywriter.
 
-CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+STRICT LANGUAGE LOCKING RULE (MANDATORY):
 Automatically detect the language of topic: "${topic}" and primary keyword: "${primaryKeyword}" (e.g., English, French, Arabic, Spanish, German, etc.).
 YOU MUST WRITE THE PUNCHY HOOK TEXT 100% IN THAT EXACT SAME DETECTED LANGUAGE.
 
@@ -653,8 +653,41 @@ Return ONLY the 3-5 word hook text in the detected input language without quotes
     });
   }
 
+  async generateContextualImagePrompt(topic: string, primaryKeyword: string, hookText: string): Promise<string> {
+    const cacheKey = `cache_img_prompt_v3_${topic}_${primaryKeyword}_${hookText}`;
+    const cached = this.getCache<string>(cacheKey);
+    if (cached) return cached;
+
+    return this.callWithRetry(async () => {
+      const ai = this.getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: `You are an expert YouTube thumbnail visual art director.
+Topic: "${topic}" (Primary Keyword: "${primaryKeyword}").
+Text Overlay Hook: "${hookText}".
+
+TASK: Write a precise, hyper-focused image generation prompt (in English) describing a YouTube thumbnail scene for this exact topic.
+
+CRITICAL VISUAL RELEVANCE & CONTEXT RULES:
+1. The primary visual subject MUST directly and accurately represent the core subject matter of "${topic}".
+   - Example: If topic is "كرة القدم" / "football" / "soccer" -> feature a professional soccer player kicking a glowing football in a packed stadium under bright floodlights.
+   - Example: If topic is "برمجة" / "coding" -> feature a software developer at a glowing desk setup with code on monitors.
+   - Example: If topic is "طبخ" / "cooking" -> feature a chef preparing a delicious steaming dish in a restaurant kitchen.
+2. STRICTLY PROHIBITED: Do NOT include random, hallucinated, or off-topic imagery (such as churches, cathedrals, mosques, religious monuments, or unrelated landscapes) UNLESS explicitly requested in the topic itself.
+3. Text Overlay: Include bold 3D high-contrast visual text overlay displaying "${hookText}".
+4. Visual Style: High contrast, 4K resolution, vibrant cinematic lighting, professional YouTube thumbnail style.
+
+Return ONLY the raw prompt string, with no quotes or extra preamble.`
+      });
+
+      const promptText = response.text?.trim() || `Professional high-CTR YouTube thumbnail for topic "${topic}". Main focal subject directly showing ${primaryKeyword}. Bold high contrast text overlay reading "${hookText}". Vibrant lighting, 4k resolution.`;
+      this.setCache(cacheKey, promptText);
+      return promptText;
+    });
+  }
+
   async generateTags(topic: string, platform: Platform, country: string): Promise<string[]> {
-    const cacheKey = `cache_tags_outlier_v1_${platform}_${country}_${topic}`;
+    const cacheKey = `cache_tags_outlier_v2_${platform}_${country}_${topic}`;
     const cached = this.getCache<string[]>(cacheKey);
     if (cached) return cached;
 
@@ -746,7 +779,8 @@ CRITICAL DYNAMIC LANGUAGE MATCHING RULE: Automatically detect the language of "$
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `Rewrite and enhance this text for maximum impact: "${text}". Context: ${context}. Catchy style: ${catchy}.`
+        contents: `Rewrite and enhance this thumbnail text for maximum impact: "${text}". Context topic: "${context}". Catchy style: ${catchy}.
+STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "${context}". The enhanced text MUST be 100% in THAT SAME DETECTED LANGUAGE. Return ONLY the enhanced text.`
       });
       return response.text?.trim() || text;
     });
@@ -755,7 +789,7 @@ CRITICAL DYNAMIC LANGUAGE MATCHING RULE: Automatically detect the language of "$
   async generateThumbnail(prompt: string, text: string, psychology: string, font: string, size: string, type: string, includeText: boolean, referenceImage?: string | null): Promise<string> {
     return this.callWithRetry(async () => {
       const ai = this.getAI();
-      let finalPrompt = `Thumbnail: ${prompt}. Text elements: "${text}". Color Psychology: ${psychology}. Style: Ultra HD, 4k, trending on YouTube.`;
+      let finalPrompt = `YouTube Thumbnail Scene: ${prompt}. Text overlay elements to display clearly: "${text}". Color Psychology & Mood: ${psychology}. Style: 4K, high contrast, vibrant cinematic lighting, trending YouTube thumbnail.`;
 
       if (referenceImage) {
         try {

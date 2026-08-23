@@ -157,15 +157,16 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
       }
 
       // ----------------------------------------------------
-      // Step 5: High-CTR Thumbnail Generation (Simplified 1-Sentence Hook)
+      // Step 5: High-CTR Thumbnail Generation (Contextually Bound Prompt & Hook)
       // ----------------------------------------------------
       setCurrentStep(5);
-      setStepStatus(isRtl ? 'جاري توليد الجملة الخاطفة والصورة المصغرة التنافسية...' : 'Generating punchy 1-sentence hook & competitive thumbnail...');
+      setStepStatus(isRtl ? 'جاري توليد الجملة الخاطفة والبرومبت البصري المباشر للصورة...' : 'Generating punchy hook & contextually bound thumbnail prompt...');
 
-      // Generate a short 3-5 word curiosity hook for high CTR simplification
+      // Generate a short 3-5 word curiosity hook in the exact detected language of input
       const shortHookText = await gemini.generateCuriosityHook(topicInput, primaryKeyword);
 
-      const thumbnailPrompt = `Professional high-CTR YouTube thumbnail for topic "${topicInput}". Prominent expressive focal point, vibrant contrasting lighting, 3D elements, ultra detailed, 4K resolution. Clean visual hierarchy with minimal text: only display the short 3-word punchline "${shortHookText}".`;
+      // Generate contextually accurate thumbnail prompt strictly bound to topic subject matter
+      const thumbnailPrompt = await gemini.generateContextualImagePrompt(topicInput, primaryKeyword, shortHookText);
       
       let thumbnailUrl = '';
       try {
