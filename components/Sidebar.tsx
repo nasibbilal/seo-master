@@ -26,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, theme, isOpe
 
   const menuItems = [
     { id: 'keywords', label: t('nav.keywords'), icon: '🔍' },
+    { id: 'workflow', label: t('nav.workflow'), icon: '⚡' },
     { id: 'radar', label: t('nav.radar'), icon: '📡' },
     { id: 'competitors', label: t('nav.competitors'), icon: '🕵️' },
     { id: 'audience', label: t('nav.audience'), icon: '👥' },

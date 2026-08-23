@@ -8,6 +8,7 @@ import ThumbnailTab from './components/ThumbnailTab';
 import AudienceTab from './components/AudienceTab';
 import CompetitorTab from './components/CompetitorTab';
 import SettingsTab from './components/SettingsTab';
+import MasterWorkflowTab from './components/MasterWorkflowTab';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import AuthGate from './components/AuthGate';
 import { ThemeColor, ChannelMetadata, Platform } from './types';
@@ -131,6 +132,7 @@ const App: React.FC = () => {
     const props = { theme, daysCount, activeChannelId };
     switch (activeTab) {
       case 'keywords': return <KeywordTab {...props} />;
+      case 'workflow': return <MasterWorkflowTab theme={theme} daysCount={daysCount} activeChannelId={activeChannelId} />;
       case 'radar': return <RadarTab {...props} onTrendDetected={() => {}} />;
       case 'settings': return <SettingsTab theme={theme} activeChannelId={activeChannelId} />;
       case 'tags': return <TagTab {...props} />;

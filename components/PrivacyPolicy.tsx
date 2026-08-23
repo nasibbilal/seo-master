@@ -88,7 +88,7 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ theme }) => {
           </section>
 
           <div className="mt-10 pt-10 border-t border-gray-100 text-center">
-            <p className="text-sm text-gray-400">{lang === 'ar' ? 'آخر تحديث: فبراير 2025' : 'Last updated: February 2025'}</p>
+            <p className="text-sm text-gray-400">{lang === 'ar' ? `آخر تحديث: ${new Date().getFullYear()}` : `Last updated: ${new Date().getFullYear()}`}</p>
           </div>
         </div>
       </div>

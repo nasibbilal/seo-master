@@ -118,6 +118,87 @@ export class GeminiService {
     localStorage.setItem(`config_${platform.toLowerCase()}_${this.currentChannelId}`, JSON.stringify(config));
   }
 
+  checkPlatformApiKey(platform: Platform, isRtl: boolean = true): { hasKey: boolean; message?: string } {
+    const geminiConfig = this.getPlatformConfig('gemini');
+    const geminiKey = geminiConfig.apiKey || process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      return {
+        hasKey: false,
+        message: isRtl
+          ? 'يرجى إدخال مفتاح API الخاص بـ Gemini في قسم الإعدادات لتفعيل خوارزميات الذكاء الاصطناعي.'
+          : 'Please enter the Gemini API Key in Settings to enable AI features.'
+      };
+    }
+
+    let requiredKey = '';
+    let platformNameAr = '';
+    let platformNameEn = '';
+
+    switch (platform) {
+      case Platform.YOUTUBE: {
+        const cfg = this.getPlatformConfig('youtube');
+        requiredKey = cfg.youtube_key || cfg.youtube_key_2 || '';
+        platformNameAr = 'يوتيوب (YouTube)';
+        platformNameEn = 'YouTube';
+        break;
+      }
+      case Platform.TIKTOK: {
+        const cfg = this.getPlatformConfig('tiktok');
+        requiredKey = cfg.tiktok_secret || '';
+        platformNameAr = 'تيك توك (TikTok)';
+        platformNameEn = 'TikTok';
+        break;
+      }
+      case Platform.INSTAGRAM: {
+        const cfg = this.getPlatformConfig('meta');
+        requiredKey = cfg.meta_token || '';
+        platformNameAr = 'إنستغرام (Instagram)';
+        platformNameEn = 'Instagram';
+        break;
+      }
+      case Platform.FACEBOOK: {
+        const cfg = this.getPlatformConfig('meta');
+        requiredKey = cfg.meta_token || '';
+        platformNameAr = 'فيسبوك (Facebook)';
+        platformNameEn = 'Facebook';
+        break;
+      }
+      case Platform.GOOGLE: {
+        const cfg = this.getPlatformConfig('google_search');
+        requiredKey = cfg.google_token || '';
+        platformNameAr = 'بحث جوجل (Google Search)';
+        platformNameEn = 'Google Search';
+        break;
+      }
+      case Platform.PINTEREST: {
+        const cfg = this.getPlatformConfig('pinterest');
+        requiredKey = cfg.pinterest_token || '';
+        platformNameAr = 'بينتريست (Pinterest)';
+        platformNameEn = 'Pinterest';
+        break;
+      }
+      default: {
+        const gCfg = this.getPlatformConfig('google_search');
+        const mCfg = this.getPlatformConfig('meta');
+        requiredKey = gCfg.google_token || mCfg.meta_token || geminiKey;
+        platformNameAr = platform;
+        platformNameEn = platform;
+        break;
+      }
+    }
+
+    if (!requiredKey || requiredKey.trim() === '') {
+      return {
+        hasKey: false,
+        message: isRtl
+          ? `يرجى إدخال مفتاح API الخاص بـ ${platformNameAr} في قسم الإعدادات لجلب البيانات الحقيقية.`
+          : `Please enter the API key for ${platformNameEn} in settings to fetch real data.`
+      };
+    }
+
+    return { hasKey: true };
+  }
+
   setChannel(channelId: string) {
     this.currentChannelId = channelId;
     localStorage.setItem('active_channel', channelId);
@@ -225,23 +306,24 @@ export class GeminiService {
 
     return this.callWithRetry(async () => {
       const ytConfig = this.getPlatformConfig('youtube');
+      const ytKey = ytConfig.youtube_key || ytConfig.youtube_key_2;
 
-      if (platform === Platform.YOUTUBE && ytConfig) {
+      if (platform === Platform.YOUTUBE && ytKey) {
         try {
           // 1. Search top 10 videos
-          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${ytConfig}`);
+          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${ytKey}`);
           const searchData = await searchRes.json();
           if (searchData.items && searchData.items.length > 0) {
             const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
             
             // 2. Get video details (tags, stats)
-            const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${ytConfig}`);
+            const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${ytKey}`);
             const videoData = await videoRes.json();
             
             const channelIds = [...new Set(videoData.items.map((v: any) => v.snippet.channelId))].join(',');
             
             // 3. Get channel details (subs)
-            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${ytConfig}`);
+            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${ytKey}`);
             const channelData = await channelRes.json();
             
             const channelMap: Record<string, number> = {};
@@ -329,11 +411,37 @@ export class GeminiService {
             return result;
           }
         } catch (e) {
-          console.error("YouTube API Outlier Strategy failed, falling back to Gemini:", e);
+          console.error("YouTube API Outlier Strategy failed:", e);
         }
       }
 
-      // Fallback
+      // Live Google Search API
+      const googleCfg = this.getPlatformConfig('google_search');
+      if (platform === Platform.GOOGLE && googleCfg.google_token) {
+        try {
+          const res = await fetch(`https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${googleCfg.google_token}`);
+          const gData = await res.json();
+          if (gData.items && gData.items.length > 0) {
+            const liveSnippets = gData.items.map((i: any) => i.title).join(', ');
+            const ai = this.getAI();
+            const aiRes = await ai.models.generateContent({
+              model: "gemini-3.6-flash",
+              config: { responseMimeType: "application/json" },
+              contents: `Live Google Search results for "${query}": ${liveSnippets}. Extract 10 high-intent search keywords with search volume and competition level. Return array of KeywordMetric.`
+            });
+            const keywords = JSON.parse(aiRes.text || "[]");
+            if (keywords.length > 0) {
+              const result = { keywords, suggestedTitle: gData.items[0].title, suggestedDesc: gData.items[0].snippet };
+              this.setCache(cacheKey, result);
+              return result;
+            }
+          }
+        } catch (e) {
+          console.error("Google Search API fetch error:", e);
+        }
+      }
+
+      // Fallback AI processing with live data context
       const result = await this.getGeminiKeywordsFallback(query, platform, country);
       this.setCache(cacheKey, result);
       return result;
@@ -375,12 +483,13 @@ export class GeminiService {
     return this.callWithRetry(async () => {
       let liveData = "";
       const ytConfig = this.getPlatformConfig('youtube');
+      const ytKey = ytConfig.youtube_key || ytConfig.youtube_key_2;
       
-      if ((platform === Platform.YOUTUBE || platform === Platform.GOOGLE) && ytConfig) {
+      if ((platform === Platform.YOUTUBE || platform === Platform.GOOGLE) && ytKey) {
         try {
           const region = country !== 'GLOBAL' ? country : 'US';
           const searchRes = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&regionCode=${region}&type=video&maxResults=10&order=viewCount&publishedAfter=${new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()}&key=${ytConfig}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&regionCode=${region}&type=video&maxResults=10&order=viewCount&publishedAfter=${new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()}&key=${ytKey}`
           );
           const searchData = await searchRes.json();
           if (searchData.items && searchData.items.length > 0) {
@@ -463,6 +572,68 @@ export class GeminiService {
     });
   }
 
+  async generateExpandedSeoDescription(
+    topic: string,
+    primaryKeyword: string,
+    exploitKeywords: string[],
+    currentYear: number = new Date().getFullYear()
+  ): Promise<string> {
+    const cacheKey = `cache_expanded_desc_${topic}_${primaryKeyword}_${currentYear}`;
+    const cached = this.getCache<string>(cacheKey);
+    if (cached) return cached;
+
+    return this.callWithRetry(async () => {
+      const ai = this.getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: `أنت خبير SEO يوتيوب متخصص. اكتب وصفاً ترويجياً استهدافياً شاملاً وفائق التوافق مع خوارزميات يوتيوب لعام ${currentYear}.
+
+الموضوع: "${topic}"
+الكلمة المفتاحية الرئيسية: "${primaryKeyword}"
+كلمات الفجوة المستغلة: ${exploitKeywords.join(', ')}
+
+شروط الوصف (مهم جداً):
+1. يجب أن يكون الوصف مقالاً مصغراً يتكون من 2 إلى 3 فقرات غنية بالكلمات المفتاحية والسياقية لعام ${currentYear}.
+2. الفقرة الأولى: تقديم جذاب خاطف للأنظار يشرح ما سيتعلمه المشاهد ويدمج الكلمة المفتاحية الرئيسية بذكاء.
+3. الفقرة الثانية: تغطية النقاط والأسئلة الشائعة وتلبية فجوات المنافسين مع إبراز القيمة الاستثنائية للحدث.
+4. الفقرة الثالثة: دعوة واضحة للتفاعل (اشتراك، إعجاب، تعليق)، يتبعها قائمة بالوسوم والتاجات الاستراتيجية.
+
+اكتب الوصف باللغة العربية بأسلوب احترافي ومقنع.`
+      });
+
+      const desc = response.text?.trim() || "";
+      if (desc) this.setCache(cacheKey, desc);
+      return desc;
+    });
+  }
+
+  async generateCuriosityHook(topic: string, primaryKeyword: string): Promise<string> {
+    const cacheKey = `cache_curiosity_hook_${topic}_${primaryKeyword}`;
+    const cached = this.getCache<string>(cacheKey);
+    if (cached) return cached;
+
+    return this.callWithRetry(async () => {
+      const ai = this.getAI();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: `أنت خبير زيادة نسبة النقر (High CTR) على يوتيوب.
+المطلوب: توليد "جملة واحدة فقط قصيرة جداً ومثيرة للفضول ومحفزة للنقر" (من 3 إلى 5 كلمات باللغة العربية) لوضعها كنص رئيسي بسيط على صورة مصغرة لـ فيديو بموضوع: "${topic}" والكلمة المفتاحية: "${primaryKeyword}".
+
+أمثلة للجمل المطلوبة:
+- "سر لا يخبرك به أحد! 🔥"
+- "الحقيقة الكاملة بوضوح! ✨"
+- "ضاعف أرباحك الآن! 🚀"
+- "شاهد هذا قبل الشراء! ⚡"
+
+أعد النص المطلوب فقط بدون أي شرح أو علامات تنصيص إضافية.`
+      });
+
+      const hook = response.text?.trim().replace(/^["'«]+|["'»]+$/g, '') || "سر حقيقي لا تفوته! 🔥";
+      if (hook) this.setCache(cacheKey, hook);
+      return hook;
+    });
+  }
+
   async generateTags(topic: string, platform: Platform, country: string): Promise<string[]> {
     const cacheKey = `cache_tags_outlier_v1_${platform}_${country}_${topic}`;
     const cached = this.getCache<string[]>(cacheKey);
@@ -470,24 +641,25 @@ export class GeminiService {
 
     return this.callWithRetry(async () => {
       const ytConfig = this.getPlatformConfig('youtube');
+      const ytKey = ytConfig.youtube_key || ytConfig.youtube_key_2;
 
-      if (platform === Platform.YOUTUBE && ytConfig) {
+      if (platform === Platform.YOUTUBE && ytKey) {
         try {
           // 1. Search top 15 videos to get a broad range of tags
-          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&maxResults=15&key=${ytConfig}`);
+          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(topic)}&type=video&maxResults=15&key=${ytKey}`);
           const searchData = await searchRes.json();
           
           if (searchData.items && searchData.items.length > 0) {
             const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
             
             // 2. Get video details (tags, stats)
-            const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${ytConfig}`);
+            const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${ytKey}`);
             const videoData = await videoRes.json();
             
             const channelIds = [...new Set(videoData.items.map((v: any) => v.snippet.channelId))].join(',');
             
             // 3. Get channel details (subs)
-            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${ytConfig}`);
+            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${ytKey}`);
             const channelData = await channelRes.json();
             
             const channelMap: Record<string, number> = {};
@@ -653,12 +825,13 @@ export class GeminiService {
 
     return this.callWithRetry(async () => {
       const ytConfig = this.getPlatformConfig('youtube');
+      const ytKey = ytConfig.youtube_key || ytConfig.youtube_key_2;
 
-      if (platform === Platform.YOUTUBE && ytConfig) {
+      if (platform === Platform.YOUTUBE && ytKey) {
         try {
           // 1. Search for top videos in the niche and region
           const searchRes = await fetch(
-            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&regionCode=${country !== 'Global' ? country : 'US'}&type=video&maxResults=25&order=viewCount&key=${ytConfig}`
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(category)}&regionCode=${country !== 'Global' ? country : 'US'}&type=video&maxResults=25&order=viewCount&key=${ytKey}`
           );
           const searchData = await searchRes.json();
 
@@ -667,7 +840,7 @@ export class GeminiService {
             
             // 2. Fetch details including contentDetails (duration) and statistics
             const videoRes = await fetch(
-              `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${ytConfig}`
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${ytKey}`
             );
             const videoData = await videoRes.json();
 
@@ -698,7 +871,7 @@ export class GeminiService {
             for (const vid of topVideoIdsForComments) {
               try {
                 const commentRes = await fetch(
-                  `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${vid}&maxResults=15&order=relevance&key=${ytConfig}`
+                  `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${vid}&maxResults=15&order=relevance&key=${ytKey}`
                 );
                 const commentData = await commentRes.json();
                 if (commentData.items) {

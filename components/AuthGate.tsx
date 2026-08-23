@@ -141,7 +141,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ onLogin }) => {
           </button>
         </div>
 
-        <p className="text-center mt-8 text-[9px] md:text-[10px] text-gray-600 font-bold uppercase tracking-widest select-none">{lang === 'ar' ? 'جميع الحقوق محفوظة © SEOMaster Intelligence 2025' : 'All Rights Reserved © SEOMaster Intelligence 2025'}</p>
+        <p className="text-center mt-8 text-[9px] md:text-[10px] text-gray-600 font-bold uppercase tracking-widest select-none">{lang === 'ar' ? `جميع الحقوق محفوظة © SEOMaster Intelligence ${new Date().getFullYear()}` : `All Rights Reserved © SEOMaster Intelligence ${new Date().getFullYear()}`}</p>
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Sidebar
     'nav.keywords': 'تحليل الكلمات',
+    'nav.workflow': 'المسار التلقائي (Workflow)',
     'nav.radar': 'الرادار الذكي',
     'nav.competitors': 'تحليل المنافسين',
     'nav.audience': 'تحليل الجمهور',
@@ -115,6 +116,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Sidebar
     'nav.keywords': 'Keyword Analysis',
+    'nav.workflow': 'Master Workflow',
     'nav.radar': 'Smart Radar',
     'nav.competitors': 'Competitor Analysis',
     'nav.audience': 'Audience Analysis',
