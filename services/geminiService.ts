@@ -535,23 +535,32 @@ export class GeminiService {
   }
 
   async generatePlatformContent(keywords: string[], platform: Platform, topic: string): Promise<{ title: string, description: string }> {
-    const cacheKey = `cache_content_${platform}_${topic}_${keywords.join(',')}`;
+    const cacheKey = `cache_content_v2_${platform}_${topic}_${keywords.join(',')}`;
     const cached = this.getCache<{ title: string, description: string }>(cacheKey);
     if (cached) return cached;
 
     return this.callWithRetry(async () => {
       const ai = this.getAI();
+      const currentYear = new Date().getFullYear();
       
       const systemInstruction = `You are an elite SEO expert for ${platform}. 
-      Your goal is to dominate search results using the provided keywords: ${keywords.join(', ')}.
+      Your goal is to dominate search results for year ${currentYear} using the provided keywords: ${keywords.join(', ')}.
       
+      CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+      Automatically detect the language of the topic/keywords ("${topic}", "${keywords.join(', ')}") (e.g., English, French, Arabic, Spanish, German, etc.).
+      YOU MUST GENERATE BOTH 'title' AND 'description' 100% IN THAT EXACT SAME DETECTED LANGUAGE.
+      - If input topic/keywords are English -> Output 100% English.
+      - If input topic/keywords are French -> Output 100% French.
+      - If input topic/keywords are Arabic -> Output 100% Arabic.
+      Do not mix or translate languages.
+
       Platform-Specific Rules:
       - YouTube: Create high CTR titles with curiosity gaps and description rich with keywords in the first 2 lines.
       - Google: Focus on search intent, clarity, and authority. Use long-tail keywords.
       - TikTok: Punchy, viral style, uses hashtags, and immediate hook.
       - Instagram: Aesthetic focus, hashtags, and engagement call to actions.
       
-      Return JSON with 'title' and 'description' keys.`;
+      Return JSON object with 'title' and 'description' keys.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
@@ -559,7 +568,7 @@ export class GeminiService {
           responseMimeType: "application/json",
           systemInstruction: systemInstruction 
         },
-        contents: `Topic: "${topic}". Primary Keywords: ${keywords[0]}. Secondary: ${keywords.slice(1).join(', ')}. Generate the best SEO content to rank #1.`
+        contents: `Topic: "${topic}". Primary Keywords: ${keywords[0]}. Secondary: ${keywords.slice(1).join(', ')}. Generate the best SEO title and description for ${currentYear} strictly in the detected input language.`
       });
       
       const parsed = JSON.parse(response.text || '{"title":"","description":""}');
@@ -578,7 +587,7 @@ export class GeminiService {
     exploitKeywords: string[],
     currentYear: number = new Date().getFullYear()
   ): Promise<string> {
-    const cacheKey = `cache_expanded_desc_${topic}_${primaryKeyword}_${currentYear}`;
+    const cacheKey = `cache_expanded_desc_v2_${topic}_${primaryKeyword}_${currentYear}`;
     const cached = this.getCache<string>(cacheKey);
     if (cached) return cached;
 
@@ -586,19 +595,27 @@ export class GeminiService {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `أنت خبير SEO يوتيوب متخصص. اكتب وصفاً ترويجياً استهدافياً شاملاً وفائق التوافق مع خوارزميات يوتيوب لعام ${currentYear}.
+        contents: `You are an elite multi-platform SEO copywriter for ${currentYear}.
 
-الموضوع: "${topic}"
-الكلمة المفتاحية الرئيسية: "${primaryKeyword}"
-كلمات الفجوة المستغلة: ${exploitKeywords.join(', ')}
+CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+Automatically detect the language of the input topic ("${topic}") and primary keyword ("${primaryKeyword}") (e.g., English, French, Arabic, Spanish, German, etc.).
+YOU MUST WRITE THE ENTIRE 2-3 PARAGRAPH SEO DESCRIPTION 100% IN THAT EXACT SAME DETECTED LANGUAGE.
+- If input topic/keyword is English -> 100% English.
+- If input topic/keyword is French -> 100% French.
+- If input topic/keyword is Arabic -> 100% Arabic.
+- Do not mix or translate into other languages.
 
-شروط الوصف (مهم جداً):
-1. يجب أن يكون الوصف مقالاً مصغراً يتكون من 2 إلى 3 فقرات غنية بالكلمات المفتاحية والسياقية لعام ${currentYear}.
-2. الفقرة الأولى: تقديم جذاب خاطف للأنظار يشرح ما سيتعلمه المشاهد ويدمج الكلمة المفتاحية الرئيسية بذكاء.
-3. الفقرة الثانية: تغطية النقاط والأسئلة الشائعة وتلبية فجوات المنافسين مع إبراز القيمة الاستثنائية للحدث.
-4. الفقرة الثالثة: دعوة واضحة للتفاعل (اشتراك، إعجاب، تعليق)، يتبعها قائمة بالوسوم والتاجات الاستراتيجية.
+Topic: "${topic}"
+Primary Keyword: "${primaryKeyword}"
+Exploit Keywords / Gap: ${exploitKeywords.join(', ')}
 
-اكتب الوصف باللغة العربية بأسلوب احترافي ومقنع.`
+Description Structure Requirements:
+1. The description MUST be an expanded 2 to 3 paragraph mini-article rich in relevant keywords and context for ${currentYear}.
+2. Paragraph 1: High-impact opening hook introducing what the viewer/reader will gain and incorporating the primary keyword.
+3. Paragraph 2: Comprehensive coverage addressing audience questions and bridging competitor gaps with deep value.
+4. Paragraph 3: Strong call-to-action (Subscribe, Like, Comment, Share) followed by strategic hashtags and tags.
+
+Return ONLY the full 2-3 paragraph SEO description 100% in the detected input language.`
       });
 
       const desc = response.text?.trim() || "";
@@ -608,7 +625,7 @@ export class GeminiService {
   }
 
   async generateCuriosityHook(topic: string, primaryKeyword: string): Promise<string> {
-    const cacheKey = `cache_curiosity_hook_${topic}_${primaryKeyword}`;
+    const cacheKey = `cache_curiosity_hook_v2_${topic}_${primaryKeyword}`;
     const cached = this.getCache<string>(cacheKey);
     if (cached) return cached;
 
@@ -616,19 +633,21 @@ export class GeminiService {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `أنت خبير زيادة نسبة النقر (High CTR) على يوتيوب.
-المطلوب: توليد "جملة واحدة فقط قصيرة جداً ومثيرة للفضول ومحفزة للنقر" (من 3 إلى 5 كلمات باللغة العربية) لوضعها كنص رئيسي بسيط على صورة مصغرة لـ فيديو بموضوع: "${topic}" والكلمة المفتاحية: "${primaryKeyword}".
+        contents: `You are a High-CTR thumbnail copywriter.
 
-أمثلة للجمل المطلوبة:
-- "سر لا يخبرك به أحد! 🔥"
-- "الحقيقة الكاملة بوضوح! ✨"
-- "ضاعف أرباحك الآن! 🚀"
-- "شاهد هذا قبل الشراء! ⚡"
+CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+Automatically detect the language of topic: "${topic}" and primary keyword: "${primaryKeyword}" (e.g., English, French, Arabic, Spanish, German, etc.).
+YOU MUST WRITE THE PUNCHY HOOK TEXT 100% IN THAT EXACT SAME DETECTED LANGUAGE.
 
-أعد النص المطلوب فقط بدون أي شرح أو علامات تنصيص إضافية.`
+Task: Generate a single short, extremely curiosity-inducing 3 to 5 word punchline to place on a video thumbnail.
+Examples (English): "What Nobody Tells You! 🔥", "Secret Revealed Now! 🚀", "Watch Before Buying! ⚡"
+Examples (French): "Ce Que Personne Ne Dit! 🔥", "Révélation Incroyable! 🚀"
+Examples (Arabic): "سر لا يخبرك به أحد! 🔥", "الحقيقة الكاملة بوضوح! ✨"
+
+Return ONLY the 3-5 word hook text in the detected input language without quotes or extra explanation.`
       });
 
-      const hook = response.text?.trim().replace(/^["'«]+|["'»]+$/g, '') || "سر حقيقي لا تفوته! 🔥";
+      const hook = response.text?.trim().replace(/^["'«]+|["'»]+$/g, '') || "";
       if (hook) this.setCache(cacheKey, hook);
       return hook;
     });
@@ -713,7 +732,8 @@ export class GeminiService {
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
         config: { responseMimeType: "application/json" },
-        contents: `Provide 20 high-converting viral tags for ${topic} on ${platform} in ${country} as a JSON string array.`
+        contents: `Provide 20 high-converting viral tags for topic "${topic}" on ${platform} in ${country} as a JSON string array.
+CRITICAL DYNAMIC LANGUAGE MATCHING RULE: Automatically detect the language of "${topic}" (e.g. English, French, Arabic, Spanish). Return ALL 20 tags strictly 100% in THAT SAME DETECTED LANGUAGE.`
       });
       const result = (JSON.parse(response.text || "[]") ?? []) as string[];
       this.setCache(cacheKey, result);
@@ -894,8 +914,15 @@ export class GeminiService {
             const estimatedAudienceSize = formatNumber(totalViews);
 
             // 4. Pass data to Gemini for synthesis
-            const prompt = `You are an elite YouTube Audience Analyst. Analyze this raw YouTube API data for the topic "${category}" in region "${country}".
+            const prompt = `You are an elite YouTube Audience Analyst. Analyze this raw YouTube API data for topic "${category}" in region "${country}".
             
+            CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+            Automatically detect the language of category "${category}" (e.g. English, French, Arabic, Spanish, German, etc.).
+            YOU MUST RETURN ALL TEXT FIELDS (ageRange, interests, audienceSize, engagementTimes, engagementTimesShorts, engagementTimesLong, contentFormats descriptions, topics, etc.) 100% IN THAT EXACT SAME DETECTED LANGUAGE.
+            - If category is English -> Output 100% English (e.g. "Thu & Fri 6:00 PM - 9:00 PM", "18-35 years old", "1.2M active viewers").
+            - If category is French -> Output 100% French.
+            - If category is Arabic -> Output 100% Arabic.
+
             Video Data (Duration PT..S is usually Short, PT..M is Long. publishedAt shows when they post):
             ${JSON.stringify(videoAnalysis)}
             
@@ -906,20 +933,20 @@ export class GeminiService {
             
             Task:
             1. Find the most common posting hours for Shorts vs Long videos based on 'publishedAt' fields.
-            2. Infer the audience's age range, interests, and dominant countries based on the language/context of the comments and the region "${country}".
+            2. Infer the audience's age range, interests, and dominant countries based on the language/context of comments and region "${country}".
             3. Return ONLY a valid JSON matching this schema:
             {
               "demographics": {
-                "ageRange": "e.g. 18-24 سنوات",
+                "ageRange": "age range string in detected language",
                 "interests": ["interest 1", "interest 2"],
-                "audienceSize": "${estimatedAudienceSize} مشاهد نشط",
+                "audienceSize": "audience size in detected language",
                 "topCountries": ["Country 1", "Country 2"]
               },
-              "engagementTimes": "General best time",
-              "engagementTimesShorts": "e.g. 6:00 م - 8:00 م",
-              "engagementTimesLong": "e.g. 2:00 م - 4:00 م",
+              "engagementTimes": "General best posting time in detected language",
+              "engagementTimesShorts": "e.g. 6:00 PM - 8:00 PM in detected language",
+              "engagementTimesLong": "e.g. 2:00 PM - 4:00 PM in detected language",
               "contentFormats": [
-                { "format": "Shorts", "performanceScore": 95, "description": "Highly engaging" }
+                { "format": "Shorts", "performanceScore": 95, "description": "description in detected language" }
               ],
               "currentMonthTopics": [ { "topic": "topic name", "volume": "High" } ],
               "topSearchQueries": [ { "topic": "query", "competition": 80 } ]
@@ -939,7 +966,7 @@ export class GeminiService {
               demographics: {
                 ageRange: parsed.demographics?.ageRange || "18-35",
                 interests: parsed.demographics?.interests || [category],
-                audienceSize: parsed.demographics?.audienceSize || `${estimatedAudienceSize} مهتم`,
+                audienceSize: parsed.demographics?.audienceSize || `${estimatedAudienceSize}`,
                 topCountries: parsed.demographics?.topCountries || [country],
               },
               engagementTimes: parsed.engagementTimes || "6 PM - 9 PM",
@@ -968,7 +995,10 @@ export class GeminiService {
         config: { 
           responseMimeType: "application/json"
         },
-        contents: `Real-time audience insight analysis for ${category} on ${platform} in ${country} over ${days} days. Include best posting times for Shorts/Reels vs Long videos, estimated audience size and top countries. Return ONLY valid JSON in Arabic. Schema: {"demographics": {"ageRange": "...", "interests": ["..."], "audienceSize": "...", "topCountries": ["..."]}, "engagementTimes": "...", "engagementTimesShorts": "...", "engagementTimesLong": "...", "contentFormats": [{"format": "...", "performanceScore": 90, "description": "..."}], "currentMonthTopics": [{"topic": "...", "volume": "..."}], "topSearchQueries": [{"topic": "...", "competition": 90}]}`
+        contents: `Real-time audience insight analysis for topic "${category}" on ${platform} in ${country} over ${days} days. Include best posting times for Shorts/Reels vs Long videos, estimated audience size and top countries.
+CRITICAL DYNAMIC LANGUAGE MATCHING RULE:
+Automatically detect the language of category "${category}" (e.g. English, French, Arabic, Spanish). Output ALL text fields (demographics, engagementTimes, engagementTimesShorts, engagementTimesLong, contentFormats, topics, queries) strictly 100% in THAT SAME DETECTED LANGUAGE.
+Schema: {"demographics": {"ageRange": "...", "interests": ["..."], "audienceSize": "...", "topCountries": ["..."]}, "engagementTimes": "...", "engagementTimesShorts": "...", "engagementTimesLong": "...", "contentFormats": [{"format": "...", "performanceScore": 90, "description": "..."}], "currentMonthTopics": [{"topic": "...", "volume": "..."}], "topSearchQueries": [{"topic": "...", "competition": 90}]}`
       });
 
       const parsed = this.cleanAndParseJSON(response.text);
@@ -1282,7 +1312,8 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
             required: ["isGap", "message", "urgency", "exploitKeywords", "suggestedTitle", "suggestedDesc"]
           }
         },
-        contents: `Is there a content gap for "${trendTitle}"? You are an elite SEO marketer. Provide a catchy ranking title, strategic SEO description, and exploit keywords. MUST RETURN ALL TEXT FIELDS IN ARABIC.`
+        contents: `Is there a content gap for "${trendTitle}"? You are an elite SEO marketer. Provide a catchy ranking title, strategic SEO description, and exploit keywords.
+CRITICAL DYNAMIC LANGUAGE MATCHING RULE: Automatically detect the language of "${trendTitle}" (e.g., English, French, Arabic, Spanish, etc.). YOU MUST RETURN ALL TEXT FIELDS (message, urgency, exploitKeywords, suggestedTitle, suggestedDesc) 100% IN THAT EXACT SAME DETECTED LANGUAGE.`
       });
 
       const parsed = this.cleanAndParseJSON(response.text);

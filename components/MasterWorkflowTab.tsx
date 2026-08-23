@@ -141,19 +141,19 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
       setStepStatus(isRtl ? 'جاري صياغة العنوان الاستهدافي والوصف الموسع (2-3 فقرات SEO)...' : 'Crafting targeted title & expanded 2-3 paragraph SEO description...');
 
       const currentYear = new Date().getFullYear();
-      const contentPrompt = `الموضوع: "${topicInput}". العام الحالي: ${currentYear}. الكلمة المفتاحية الرئيسية: "${primaryKeyword}". فجوة المنافسين: "${gapInfo?.message || ''}". كلمات الثغرة: ${exploitKeywords.join(', ')}.`;
+      const contentPrompt = `Topic: "${topicInput}". Year: ${currentYear}. Primary Keyword: "${primaryKeyword}". Competitor Gap Message: "${gapInfo?.message || ''}". Exploit Keywords: ${exploitKeywords.join(', ')}. CRITICAL: Automatically detect the input language of topic/keyword and output EVERYTHING 100% in THAT SAME LANGUAGE.`;
       
       let finalTitle = gapInfo?.suggestedTitle || '';
       
-      const generatedContent = await gemini.generatePlatformContent(combinedTags.slice(0, 5), selectedPlatform, contentPrompt);
+      const generatedContent = await gemini.generatePlatformContent(combinedTags.slice(0, 5), selectedPlatform, topicInput);
       if (!finalTitle) {
-        finalTitle = generatedContent.title || `${topicInput} لعام ${currentYear} | الدليل الشامل والحل النهائي`;
+        finalTitle = generatedContent.title || `${topicInput} ${currentYear}`;
       }
 
       // Generate rich 2-3 paragraph SEO description
       let finalDescription = await gemini.generateExpandedSeoDescription(topicInput, primaryKeyword, exploitKeywords, currentYear);
-      if (!finalDescription || finalDescription.length < 100) {
-        finalDescription = generatedContent.description || `في هذا الفيديو لعام ${currentYear}، نستعرض أسرار ${topicInput} وكيفية الاستفادة الحقيقية من ${primaryKeyword}.\n\nشرح تفصيلي يجيب عن كافة الأسئلة المتكررة ويردم الفجوات التي يغفل عنها المنافسون بأسلوب مبسط ومباشر.\n\nاشترك في القناة وفعل زر الجرس ليصلك كل جديد أولاً بأول! #SEO_${currentYear}`;
+      if (!finalDescription || finalDescription.length < 50) {
+        finalDescription = generatedContent.description || `${topicInput} (${currentYear}) - ${primaryKeyword}`;
       }
 
       // ----------------------------------------------------
