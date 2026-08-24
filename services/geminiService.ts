@@ -299,8 +299,30 @@ export class GeminiService {
     }
   }
 
+  private detectLanguage(input: string): string {
+    if (!input) return 'Arabic';
+    // Check Arabic unicode characters
+    if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(input)) {
+      return 'Arabic';
+    }
+    // Check French accented characters or common French words
+    if (/[éèêëàâäôöûüçîïÉÈÊËÀÂÄÔÖÛÜÇÎÏ]/.test(input) || /\b(le|la|les|un|une|des|du|dans|pour|avec|comment|quoi|qui|est|sont|ce|cette)\b/i.test(input)) {
+      return 'French';
+    }
+    // Check Spanish
+    if (/[ñáéíóúÁÉÍÓÚ¿¡]/.test(input) || /\b(el|la|los|las|un|una|unos|unas|como|para|con|que|por|del)\b/i.test(input)) {
+      return 'Spanish';
+    }
+    // Default to English for other Latin script inputs
+    if (/[a-zA-Z]/.test(input)) {
+      return 'English';
+    }
+    return 'Arabic';
+  }
+
   async analyzeKeywords(query: string, platform: Platform, country: string): Promise<any> {
-    const cacheKey = `cache_keywords_outlier_v1_${platform}_${country}_${query}`;
+    const detectedLang = this.detectLanguage(query);
+    const cacheKey = `cache_keywords_outlier_v4_${platform}_${country}_${detectedLang}_${query}`;
     const cached = this.getCache<any>(cacheKey);
     if (cached) return cached;
 
@@ -310,8 +332,20 @@ export class GeminiService {
 
       if (platform === Platform.YOUTUBE && ytKey) {
         try {
+          // Determine language-appropriate search parameters
+          let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${ytKey}`;
+          if (detectedLang === 'Arabic') {
+            searchUrl += `&relevanceLanguage=ar`;
+          } else if (detectedLang === 'French') {
+            searchUrl += `&relevanceLanguage=fr`;
+          } else if (detectedLang === 'Spanish') {
+            searchUrl += `&relevanceLanguage=es`;
+          } else if (detectedLang === 'English') {
+            searchUrl += `&relevanceLanguage=en`;
+          }
+
           // 1. Search top 10 videos
-          const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${ytKey}`);
+          const searchRes = await fetch(searchUrl);
           const searchData = await searchRes.json();
           if (searchData.items && searchData.items.length > 0) {
             const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
@@ -349,7 +383,8 @@ export class GeminiService {
 
               const tags = vid.snippet.tags || [];
               tags.forEach((tag: string) => {
-                const t = tag.toLowerCase();
+                const t = tag.toLowerCase().trim();
+                if (!t) return;
                 if (!tagScores[t]) tagScores[t] = { score: 0, views: 0, count: 0 };
                 tagScores[t].score += outlierScore;
                 tagScores[t].views += views;
@@ -365,7 +400,7 @@ export class GeminiService {
 
             const maxScore = Math.max(...sortedTags.map(t => t.score), 1);
 
-            const keywords: KeywordMetric[] = sortedTags.map(t => {
+            let keywords: KeywordMetric[] = sortedTags.map(t => {
               const strength = Math.min(Math.round((t.score / maxScore) * 100), 100);
               const competition = Math.max(100 - strength, 10);
               const formatNumber = (num: number) => {
@@ -382,12 +417,25 @@ export class GeminiService {
               };
             });
 
-            // 6. Generate Title & Desc using Gemini based on context
+            if (keywords.length === 0) {
+              keywords = await this.getGeminiKeywordsFallback(query, platform, country);
+            }
+
+            // 6. Generate Title & Desc using Gemini based strictly on detected input language
             let suggestedTitle = "";
             let suggestedDesc = "";
             try {
               const ai = this.getAI();
-              const prompt = `You are a YouTube SEO expert. I extracted the top ranking videos for "${query}". I performed an "Outlier Analysis" comparing their views, subs, and age. Data:\n${outlierContext}\n\nTask:\n1. Analyze why high outlier videos succeeded.\n2. Generate a highly clickable, viral title (in Arabic) to outrank them.\n3. Generate a strategic SEO description (in Arabic) incorporating the best tags.\nReturn ONLY a valid JSON: {"title": "...", "description": "..."}`;
+              const currentYear = new Date().getFullYear();
+              const prompt = `You are an elite YouTube SEO expert. I extracted the top ranking videos for "${query}" (Language: ${detectedLang}).
+Outlier competitor data:\n${outlierContext}
+
+STRICT LANGUAGE LOCKING RULES (MANDATORY):
+1. Detect the exact language of "${query}" (${detectedLang}).
+2. Generate suggestedTitle and suggestedDesc strictly 100% in ${detectedLang}.
+3. Title format: High-converting Long-Tail: [High Search / Low Competition Keyword] : [Specific Video Topic for ${currentYear}].
+4. Description format: 2-3 structured sentences with primary keyword.
+Return ONLY a valid JSON: {"title": "...", "description": "..."}`;
               
               const aiRes = await ai.models.generateContent({
                 model: "gemini-3.6-flash",
@@ -402,7 +450,7 @@ export class GeminiService {
             }
 
             const result = {
-              keywords: keywords.length > 0 ? keywords : await this.getGeminiKeywordsFallback(query, platform, country),
+              keywords,
               suggestedTitle,
               suggestedDesc
             };
@@ -427,7 +475,8 @@ export class GeminiService {
             const aiRes = await ai.models.generateContent({
               model: "gemini-3.6-flash",
               config: { responseMimeType: "application/json" },
-              contents: `Live Google Search results for "${query}": ${liveSnippets}. Extract 10 high-intent search keywords with search volume and competition level. Return array of KeywordMetric.`
+              contents: `Live Google Search results for "${query}": ${liveSnippets}.
+STRICT LANGUAGE LOCK: Input language is "${detectedLang}". Extract 10 high-intent search keywords strictly in ${detectedLang}. Return array of KeywordMetric.`
             });
             const keywords = JSON.parse(aiRes.text || "[]");
             if (keywords.length > 0) {
@@ -449,7 +498,9 @@ export class GeminiService {
   }
 
   private async getGeminiKeywordsFallback(query: string, platform: Platform, country: string): Promise<KeywordMetric[]> {
+    const detectedLang = this.detectLanguage(query);
     const ai = this.getAI();
+    const currentYear = new Date().getFullYear();
     const response = await ai.models.generateContent({
       model: "gemini-3.6-flash",
       config: { 
@@ -469,7 +520,15 @@ export class GeminiService {
           }
         }
       },
-      contents: `Real-time SEO analysis for "${query}" on ${platform} in ${country}. Analyze trends for the current month. provide keywords that dominate search results.`
+      contents: `Perform high-precision search keyword analysis for "${query}" on ${platform} in country "${country}" for year ${currentYear}.
+
+STRICT INPUT-DRIVEN LANGUAGE CONTEXT (MANDATORY):
+1. Input query: "${query}". Detected language: ${detectedLang}.
+2. ALL generated keywords and terms MUST be extracted strictly in ${detectedLang}.
+3. If input is Arabic -> All 10-15 keywords MUST be 100% in Arabic.
+4. If input is English -> All 10-15 keywords MUST be 100% in English.
+5. If input is French -> All 10-15 keywords MUST be 100% in French.
+6. Provide high search volume, low-to-medium competition terms that directly match the user's specific topic without cross-language mixing.`
     });
     return (JSON.parse(response.text || "[]") ?? []) as KeywordMetric[];
   }
@@ -534,8 +593,94 @@ export class GeminiService {
     });
   }
 
+  async generateHarmonizedYouTubeMetadata(
+    topic: string,
+    primaryKeyword: string,
+    exploitKeywords: string[],
+    platform: Platform,
+    country: string
+  ): Promise<{ title: string, description: string, tags: string[] }> {
+    const detectedLang = this.detectLanguage(topic || primaryKeyword);
+    const currentYear = new Date().getFullYear();
+    const cacheKey = `cache_harmonized_metadata_v1_${platform}_${country}_${detectedLang}_${topic}_${primaryKeyword}`;
+    const cached = this.getCache<{ title: string, description: string, tags: string[] }>(cacheKey);
+    if (cached) return cached;
+
+    return this.callWithRetry(async () => {
+      const ai = this.getAI();
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING, description: "Long-tail SEO title combining broad keyword and specific user video topic" },
+              description: { type: Type.STRING, description: "4-part algorithm optimized description with hook, body, timestamps, and hashtags" },
+              tags: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "20 tags ordered strictly by YouTube algorithm metadata hierarchy"
+              }
+            },
+            required: ["title", "description", "tags"]
+          }
+        },
+        contents: `You are an elite YouTube Algorithm & SEO Architect for year ${currentYear}.
+
+USER INPUT DATA:
+- Specific Video Topic / Idea entered by user: "${topic}"
+- High Search Volume / Low-Competition Broad Keyword: "${primaryKeyword}"
+- Exploit / Gap Keywords: ${exploitKeywords.join(', ')}
+- Target Platform: ${platform}
+- Target Region: ${country}
+
+STRICT LANGUAGE LOCK (MANDATORY):
+- Detected Input Language: "${detectedLang}"
+- YOU MUST GENERATE ALL FIELDS (title, description, timestamps, tags) 100% IN THAT EXACT SAME LANGUAGE ("${detectedLang}").
+- NEVER mix languages or translate to a different language.
+
+CORE TASK: GENERATE PERFECTLY HARMONIZED METADATA (Title, Description, Tags) SO THE YOUTUBE ALGORITHM ACCURATELY INDEXES THE EXACT TARGET AUDIENCE.
+
+1. LONG-TAIL TITLE STRATEGY (CRITICAL):
+   - You MUST combine the high-search general keyword with the user's specific detailed topic into a single magnetic title.
+   - FORMULA: [High Search / Low-Competition Broad Keyword] : [Specific User Video Topic / Idea as provided by user] (${currentYear})
+   - Rule: NEVER omit the specific video topic "${topic}". The broad keyword gives search volume, while the user's specific topic captures the exact buyer/viewer intent.
+   - Example (Arabic): إذا كان الموضوع "طريقة عمل قهوة إسبريسو بالمنزل بدون ماكينة" والكلمة "صنع القهوة" -> العنوان: صنع القهوة : طريقة عمل قهوة إسبريسو بالمنزل بدون ماكينة خطوة بخطوة 2026
+   - Example (English): If topic is "Build an ecommerce store with zero budget" and keyword is "Dropshipping for Beginners" -> Title: Dropshipping for Beginners : How to Build an Ecommerce Store with Zero Budget in 2026
+
+2. ALGORITHM-FRIENDLY DESCRIPTION STRUCTURE:
+   - Part 1: THE HOOK & SEO (First 2-3 lines): Compelling opening hook that naturally includes both the primary broad keyword ("${primaryKeyword}") and the specific video topic ("${topic}") before the "Show more" fold.
+   - Part 2: BODY (جسم الوصف): 2 valuable paragraphs explaining what viewers will learn, solve, or achieve, incorporating synonyms and contextual terms naturally.
+   - Part 3: TIMESTAMPS / CHAPTERS (فصول الفيديو): 4 to 6 logical timestamps starting strictly with 00:00 (e.g., 00:00 - المقدمة or 00:00 - Introduction).
+   - Part 4: HASHTAGS (الهاشتاغات): 3 to 5 targeted hashtags at the very end.
+
+3. TAGS (العلامات / الوسوم) - YOUTUBE ALGORITHM HIERARCHY (20 TAGS):
+   The tags MUST be ordered strictly according to the YouTube algorithm's indexing priority so that Title, Description, and Tags create a 100% coherent metadata triangle:
+   - Rank 1-2: Exact match of the Full Video Title & Exact User Specific Topic Phrase (العنوان الحرفي والموضوع الدقيق).
+   - Rank 3-5: The Core High-Volume Primary Keyword & Main Niche Term ("${primaryKeyword}").
+   - Rank 6-12: Sub-topics, chapter titles, and key phrases explicitly mentioned in the description body.
+   - Rank 13-17: High-intent viewer search questions & competitor gap keywords (${exploitKeywords.slice(0, 4).join(', ') || 'user search intent phrases'}).
+   - Rank 18-20: Universal technical and niche terms (e.g. SEO, ${currentYear}, 4K, Tutorial) if applicable.
+
+Return ONLY a valid JSON object matching the schema.`
+      });
+
+      const parsed = this.cleanAndParseJSON(response.text);
+      const result = {
+        title: parsed.title || `${primaryKeyword} : ${topic} (${currentYear})`,
+        description: parsed.description || `${topic} - ${primaryKeyword}`,
+        tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags.slice(0, 20) : [topic, primaryKeyword, ...exploitKeywords].slice(0, 20)
+      };
+
+      this.setCache(cacheKey, result);
+      return result;
+    });
+  }
+
   async generatePlatformContent(keywords: string[], platform: Platform, topic: string): Promise<{ title: string, description: string }> {
-    const cacheKey = `cache_content_v3_${platform}_${topic}_${keywords.join(',')}`;
+    const cacheKey = `cache_content_v4_${platform}_${topic}_${keywords.join(',')}`;
     const cached = this.getCache<{ title: string, description: string }>(cacheKey);
     if (cached) return cached;
 
@@ -543,7 +688,7 @@ export class GeminiService {
       const ai = this.getAI();
       const currentYear = new Date().getFullYear();
       
-      const systemInstruction = `You are an elite SEO expert for ${platform}. 
+      const systemInstruction = `You are an elite SEO and YouTube algorithm strategist for ${platform}. 
       Your goal is to dominate search results for year ${currentYear} using the provided keywords: ${keywords.join(', ')}.
       
       STRICT LANGUAGE LOCKING RULE (MANDATORY):
@@ -554,11 +699,11 @@ export class GeminiService {
       - If input topic/keywords are Arabic -> Output 100% Arabic.
       NEVER mix languages under any circumstances.
 
-      Platform-Specific Rules:
-      - YouTube: Create high CTR titles with curiosity gaps and description rich with keywords in the first 2 lines.
-      - Google: Focus on search intent, clarity, and authority. Use long-tail keywords.
-      - TikTok: Punchy, viral style, uses hashtags, and immediate hook.
-      - Instagram: Aesthetic focus, hashtags, and engagement call to actions.
+      LONG-TAIL TITLE STRATEGY (CRITICAL):
+      Formulate the title strictly using the high-converting Long-Tail formula:
+      [High Search / Low-Competition Keyword] : [Specific Detailed Topic of the Video]
+      Example (Arabic): تجارة إلكترونية للمبتدئين : الدليل الشامل لإنشاء متجر مربح في 2026
+      Example (English): Ecommerce for Beginners : Complete Step-by-Step Guide to Build a Profitable Store in 2026
       
       Return JSON object with 'title' and 'description' keys.`;
 
@@ -568,7 +713,7 @@ export class GeminiService {
           responseMimeType: "application/json",
           systemInstruction: systemInstruction 
         },
-        contents: `Topic: "${topic}". Primary Keywords: ${keywords[0]}. Secondary: ${keywords.slice(1).join(', ')}. Generate the best SEO title and description for ${currentYear} strictly 100% in the detected input language.`
+        contents: `Topic: "${topic}". Primary Keywords: ${keywords[0]}. Secondary: ${keywords.slice(1).join(', ')}. Generate the best Long-Tail SEO title and description for ${currentYear} strictly 100% in the detected input language.`
       });
       
       const parsed = JSON.parse(response.text || '{"title":"","description":""}');
@@ -587,7 +732,7 @@ export class GeminiService {
     exploitKeywords: string[],
     currentYear: number = new Date().getFullYear()
   ): Promise<string> {
-    const cacheKey = `cache_expanded_desc_v3_${topic}_${primaryKeyword}_${currentYear}`;
+    const cacheKey = `cache_expanded_desc_v4_${topic}_${primaryKeyword}_${currentYear}`;
     const cached = this.getCache<string>(cacheKey);
     if (cached) return cached;
 
@@ -595,11 +740,11 @@ export class GeminiService {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `You are an elite multi-platform SEO copywriter for ${currentYear}.
+        contents: `You are an elite YouTube and multi-platform SEO copywriter for ${currentYear}.
 
 STRICT LANGUAGE LOCKING RULE (MANDATORY):
 Automatically detect the language of the input topic ("${topic}") and primary keyword ("${primaryKeyword}") (e.g., English, French, Arabic, Spanish, German, etc.).
-YOU MUST WRITE THE ENTIRE 2-3 PARAGRAPH SEO DESCRIPTION 100% IN THAT EXACT SAME DETECTED LANGUAGE.
+YOU MUST WRITE THE ENTIRE DESCRIPTION, CHAPTERS, AND HASHTAGS 100% IN THAT EXACT SAME DETECTED LANGUAGE.
 - If input topic/keyword is English -> 100% English.
 - If input topic/keyword is French -> 100% French.
 - If input topic/keyword is Arabic -> 100% Arabic.
@@ -609,13 +754,26 @@ Topic: "${topic}"
 Primary Keyword: "${primaryKeyword}"
 Exploit Keywords / Gap: ${exploitKeywords.join(', ')}
 
-Description Structure Requirements:
-1. The description MUST be an expanded 2 to 3 paragraph mini-article rich in relevant keywords and context for ${currentYear}.
-2. Paragraph 1: High-impact opening hook introducing what the viewer/reader will gain and incorporating the primary keyword.
-3. Paragraph 2: Comprehensive coverage addressing audience questions and bridging competitor gaps with deep value.
-4. Paragraph 3: Strong call-to-action (Subscribe, Like, Comment, Share) followed by strategic hashtags and tags.
+ALGORITHM-FRIENDLY DESCRIPTION STRUCTURE REQUIREMENTS:
+You MUST format the output description with the following precise 4-part structure:
 
-Return ONLY the full 2-3 paragraph SEO description 100% in the detected input language.`
+1. THE HOOK & SEO (First 2-3 lines):
+   - A compelling, high-converting opening hook that immediately explains what the viewer will learn/gain.
+   - Smoothly integrate the primary keyword ("${primaryKeyword}") and secondary terms naturally within the first 2 lines (before the "Show more" / "عرض المزيد" fold).
+
+2. BODY (جسم الوصف):
+   - 2 comprehensive, valuable paragraphs detailing the key takeaways, benefits, and solutions covered in the video.
+   - Use diverse synonyms and natural phrasing without keyword stuffing.
+
+3. VIDEO TIMESTAMPS / CHAPTERS (فصول الفيديو):
+   - Clear breakdown of video timestamps to trigger YouTube & Google video chapter indexes.
+   - MUST start with 00:00 (e.g., in Arabic: 00:00 - المقدمة, or in English: 00:00 - Introduction).
+   - Provide 4 to 6 logical timestamps matching the video topic breakdown (e.g., 00:00, 01:45, 04:30, 07:15, 10:20, 12:50).
+
+4. HASHTAGS (الهاشتاغات):
+   - Exactly 3 to 5 targeted, highly relevant hashtags placed at the very end (e.g., #${primaryKeyword.replace(/\s+/g, '_')} #...).
+
+Return ONLY the complete, beautifully structured SEO description 100% in the detected input language.`
       });
 
       const desc = response.text?.trim() || "";
@@ -765,8 +923,11 @@ Return ONLY the raw prompt string, with no quotes or extra preamble.`
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
         config: { responseMimeType: "application/json" },
-        contents: `Provide 20 high-converting viral tags for topic "${topic}" on ${platform} in ${country} as a JSON string array.
-CRITICAL DYNAMIC LANGUAGE MATCHING RULE: Automatically detect the language of "${topic}" (e.g. English, French, Arabic, Spanish). Return ALL 20 tags strictly 100% in THAT SAME DETECTED LANGUAGE.`
+        contents: `Provide 20 high-converting, highly accurate viral tags for topic "${topic}" on ${platform} in ${country} as a JSON string array.
+BALANCED & RELEVANT TAGS RULES:
+1. Extract primary tags strictly in the detected input language of "${topic}" accurately matching the specific video content.
+2. Seamlessly blend directly relevant universal English technical terms (e.g. SEO, AI, Tutorial, 2026, 4K) where directly applicable.
+3. Return ONLY a valid JSON string array of 20 tags.`
       });
       const result = (JSON.parse(response.text || "[]") ?? []) as string[];
       this.setCache(cacheKey, result);
@@ -1243,12 +1404,21 @@ Schema: {"demographics": {"ageRange": "...", "interests": ["..."], "audienceSize
           }
         },
         contents: `Analyze competitor video/channel URL: "${url}" on platform "${targetPlatform}".
-Use the live API video data, video description, and actual user comments provided below to extract exact competitor insights in Arabic.
+Use the live API video data, video description, and actual user comments provided below to extract exact competitor insights.
+
+STRICT INPUT-DRIVEN LANGUAGE MATCHING RULE:
+Automatically detect the language of the video title/content/URL.
+YOU MUST RETURN ALL TEXT FIELDS (competitorName, audienceQuestions, hashtags, whatWasSaid, algoReason, counterAttack) 100% IN THAT EXACT SAME DETECTED LANGUAGE.
+- If competitor content is English -> All fields 100% English.
+- If competitor content is French -> All fields 100% French.
+- If competitor content is Arabic -> All fields 100% Arabic.
+Do NOT mix languages under any circumstances.
+
 Specifically:
 1. "competitorName": The name of the channel or creator.
 2. "audienceQuestions": Extract 3-5 real recurring questions or unanswered doubts asked by viewers in the comments.
-3. "hashtags": Extract or generate top relevant hashtags (e.g. ["#هاشتاق1", "#هاشتاق2"]).
-4. "whatWasSaid": A rich 3-4 sentence Arabic summary of what the competitor covered/said in this video.
+3. "hashtags": Extract or generate top relevant hashtags (e.g. ["#tag1", "#tag2"]).
+4. "whatWasSaid": A rich 3-4 sentence summary of what the competitor covered/said in this video.
 5. "algoReason": Why YouTube/platform algorithms favored this video (e.g. high retention hook, curiosity-driven title).
 6. "counterAttack": A superior title and detailed SEO description that answers the audience's unanswered questions so our video outranks them.
 
@@ -1265,37 +1435,92 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
         item = {};
       }
 
-      const competitorName = item.competitorName || fetchedChannelName || (url.includes('youtube') ? 'قناة منافسة على يوتيوب' : 'منافس استراتيجي');
+      const detectedLang = this.detectLanguage(fetchedVideoTitle || url);
+      const isAr = detectedLang === 'Arabic';
+      const isFr = detectedLang === 'French';
+
+      const defaultCompetitorName = isAr
+        ? (url.includes('youtube') ? 'قناة منافسة على يوتيوب' : 'منافس استراتيجي')
+        : isFr
+        ? (url.includes('youtube') ? 'Chaîne YouTube concurrente' : 'Concurrent stratégique')
+        : (url.includes('youtube') ? 'Competitor YouTube Channel' : 'Strategic Competitor');
+
+      const competitorName = item.competitorName || fetchedChannelName || defaultCompetitorName;
+
+      const defaultAudienceQuestions = isAr ? [
+        `كيف يمكن تطبيق الخطوات المذكورة في الفيديو بشكل عملي ومجاني؟`,
+        `ما هي أفضل البدائل المتاحة إذا لم أستطع الاستفادة من هذه الأداة؟`,
+        `هل هذه الطريقة مضمونة وتعمل في جميع الدول العربية بدون مشكلات؟`,
+        `ما هي الرسوم الإضافية المتوقعة أو الشروط الخفية؟`
+      ] : isFr ? [
+        `Comment appliquer les étapes mentionnées dans la vidéo gratuitement ?`,
+        `Quelles sont les meilleures alternatives à cet outil ?`,
+        `Cette méthode fonctionne-t-elle sans frais cachés ?`,
+        `Comment obtenir des résultats rapidement sans expérience préalable ?`
+      ] : [
+        `How can I apply the steps shown in this video for free?`,
+        `What are the best alternative tools if this is not available?`,
+        `Does this strategy work worldwide without hidden fees?`,
+        `How to scale this step-by-step for beginners?`
+      ];
 
       const audienceQuestions = (Array.isArray(item.audienceQuestions) && item.audienceQuestions.length > 0)
         ? item.audienceQuestions
-        : [
-            `كيف يمكن تطبيق الخطوات المذكورة في الفيديو بشكل عملي ومجاني؟`,
-            `ما هي أفضل البدائل المتاحة إذا لم أستطع الاستفادة من هذه الأداة؟`,
-            `هل هذه الطريقة مضمونة وتعمل في جميع الدول العربية بدون مشكلات؟`,
-            `ما هي الرسوم الإضافية المتوقعة أو الشروط الخفية؟`
-          ];
+        : defaultAudienceQuestions;
+
+      const defaultHashtags = isAr
+        ? [`#${competitorName.replace(/\s+/g, '_')}`, `#سيو`, `#تسويق_رقمي`, `#زيادة_المشاهدات`, `#تريند`]
+        : isFr
+        ? [`#${competitorName.replace(/\s+/g, '_')}`, `#SEO`, `#MarketingDigital`, `#YouTubeFrance`, `#Tendance`]
+        : [`#${competitorName.replace(/\s+/g, '_')}`, `#SEO`, `#DigitalMarketing`, `#YouTubeGrowth`, `#Trending`];
 
       const hashtags = (Array.isArray(item.hashtags) && item.hashtags.length > 0)
         ? item.hashtags
-        : [`#${competitorName.replace(/\s+/g, '_')}`, `#سيو`, `#تسويق_رقمي`, `#زيادة_المشاهدات`, `#تريند`];
+        : defaultHashtags;
+
+      const defaultKeywords = isAr
+        ? [`استراتيجية المنافس`, `تحليل الفيديو`, `ثغرات التعليقات`, `سيو YOUTUBE`]
+        : isFr
+        ? [`Stratégie concurrent`, `Analyse vidéo`, `Mots-clés SEO`, `YouTube SEO`]
+        : [`Competitor Strategy`, `Video Analysis`, `Comment Gaps`, `YouTube SEO`];
 
       const topKeywords = (Array.isArray(item.topKeywords) && item.topKeywords.length > 0)
         ? item.topKeywords
-        : [`استراتيجية المنافس`, `تحليل الفيديو`, `ثغرات التعليقات`, `سيو YOUTUBE`];
+        : defaultKeywords;
+
+      const defaultTitles = isAr
+        ? [fetchedVideoTitle || `أسرار نجاح فيديو المنافس`, `كيف تصدر المنافس محركات البحث`]
+        : isFr
+        ? [fetchedVideoTitle || `Les secrets de la vidéo concurrente`, `Comment dominer les résultats de recherche`]
+        : [fetchedVideoTitle || `Secrets Behind Competitor Success`, `How Competitor Ranked on Top`];
 
       const topTitles = (Array.isArray(item.topTitles) && item.topTitles.length > 0)
         ? item.topTitles
-        : [fetchedVideoTitle || `أسرار نجاح فيديو المنافس`, `كيف تصدر المنافس محركات البحث`];
+        : defaultTitles;
 
-      const whatWasSaid = item.whatWasSaid || 
-        (fetchedVideoTitle ? `قدم المنافس في فيديو "${fetchedVideoTitle}" شرحاً مفصلاً يركز على استراتيجيات النمو والانتشار، مع تقديم أمثلة تطبيقية وحلول للمشكلات الشائعة التي تواجه المتابعين.` : `قام المنافس بتقديم محتوى مكثف يغطي أبرز استراتيجيات النجاح والتفاعل، ركز خلاله على جذب انتباه المشاهد من الثواني الأولى وإعطاء نصائح مباشرة.`);
+      const whatWasSaid = item.whatWasSaid || (isAr
+        ? (fetchedVideoTitle ? `قدم المنافس في فيديو "${fetchedVideoTitle}" شرحاً مفصلاً يركز على استراتيجيات النمو والانتشار، مع تقديم أمثلة تطبيقية وحلول للمشكلات الشائعة التي تواجه المتابعين.` : `قام المنافس بتقديم محتوى مكثف يغطي أبرز استراتيجيات النجاح والتفاعل، ركز خلاله على جذب انتباه المشاهد من الثواني الأولى وإعطاء نصائح مباشرة.`)
+        : isFr
+        ? (fetchedVideoTitle ? `Dans la vidéo "${fetchedVideoTitle}", le concurrent explique des stratégies de croissance pratiques et répond aux besoins de son audience.` : `Le concurrent a présenté une vidéo engageante avec des conseils concrets et des astuces d'optimisation.`)
+        : (fetchedVideoTitle ? `In the video "${fetchedVideoTitle}", the competitor highlighted key growth strategies, practical examples, and actionable advice.` : `The competitor shared actionable tactics and high-retention frameworks to engage viewers.`));
 
-      const algoReason = item.algoReason || `معدل احتفاظ مرتفع بالمشاهدين بسبب بداية مشوقة (Hook) وتفاعل نشط في قسم التعليقات.`;
+      const algoReason = item.algoReason || (isAr
+        ? `معدل احتفاظ مرتفع بالمشاهدين بسبب بداية مشوقة (Hook) وتفاعل نشط في قسم التعليقات.`
+        : isFr
+        ? `Taux de rétention élevé grâce à une accroche puissante et un engagement fort dans les commentaires.`
+        : `High viewer retention driven by a curiosity hook and active community engagement in the comments.`);
 
       const counterAttack = {
-        title: item.counterAttack?.title || `الدليل الشامل المجاني: الأجوبة الكاملة التي لم يخبرك بها المنافس`,
-        description: item.counterAttack?.description || `في هذا الفيديو نجيب حصرياً على جميع الأسئلة والتساؤلات التي غفل عنها المنافس في فيديو ${fetchedVideoTitle || 'المنافس'}، ونقدم لك خطوات عمل بديلة ومجانية 100% تناسب المبتدئين بالكامل.`
+        title: item.counterAttack?.title || (isAr
+          ? `الدليل الشامل المجاني: الأجوبة الكاملة التي لم يخبرك بها المنافس`
+          : isFr
+          ? `Guide Complet Gratuit: Les réponses clés ignorées par le concurrent`
+          : `The Ultimate Free Guide: Everything the Competitor Left Out`),
+        description: item.counterAttack?.description || (isAr
+          ? `في هذا الفيديو نجيب حصرياً على جميع الأسئلة والتساؤلات التي غفل عنها المنافس في فيديو ${fetchedVideoTitle || 'المنافس'}، ونقدم لك خطوات عمل بديلة ومجانية 100% تناسب المبتدئين بالكامل.`
+          : isFr
+          ? `Dans cette vidéo, nous répondons à toutes les questions sans réponse de la vidéo ${fetchedVideoTitle || 'du concurrent'} avec un guide 100% gratuit et pratique.`
+          : `In this video, we answer all the unanswered questions from ${fetchedVideoTitle || 'the competitor video'} with a step-by-step free action plan.`)
       };
 
       const resultObj: EnhancedCompetitorData = {
@@ -1346,7 +1571,9 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
             required: ["isGap", "message", "urgency", "exploitKeywords", "suggestedTitle", "suggestedDesc"]
           }
         },
-        contents: `Is there a content gap for "${trendTitle}"? You are an elite SEO marketer. Provide a catchy ranking title, strategic SEO description, and exploit keywords.
+        contents: `Is there a content gap for "${trendTitle}"? You are an elite SEO marketer.
+Provide a high-ranking Long-Tail title formatted as: [High Search / Low Competition Keyword] : [Specific Video Topic].
+Provide a strategic SEO description, and exploit keywords.
 CRITICAL DYNAMIC LANGUAGE MATCHING RULE: Automatically detect the language of "${trendTitle}" (e.g., English, French, Arabic, Spanish, etc.). YOU MUST RETURN ALL TEXT FIELDS (message, urgency, exploitKeywords, suggestedTitle, suggestedDesc) 100% IN THAT EXACT SAME DETECTED LANGUAGE.`
       });
 

@@ -135,26 +135,22 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
       const bestPublishTime = audienceInsight?.engagementTimesShorts || audienceInsight?.engagementTimesLong || audienceInsight?.engagementTimes || (isRtl ? 'الخميس والجمعة (من 6:00 م إلى 9:00 م)' : 'Thu & Fri (6:00 PM - 9:00 PM)');
 
       // ----------------------------------------------------
-      // Step 4: Targeted AI Copywriting (Expanded 2-3 Paragraph SEO Description)
+      // Step 4: Harmonized Metadata Triangulation (Title + Description + Prioritized Tags)
       // ----------------------------------------------------
       setCurrentStep(4);
-      setStepStatus(isRtl ? 'جاري صياغة العنوان الاستهدافي والوصف الموسع (2-3 فقرات SEO)...' : 'Crafting targeted title & expanded 2-3 paragraph SEO description...');
+      setStepStatus(isRtl ? 'جاري صياغة العنوان الاستهدافي والوصف الموسع وتنسيق العلامات حسب ترتيب خوارزميات يوتيوب...' : 'Crafting targeted title, expanded SEO description & triangulating tags for YouTube algorithm...');
 
-      const currentYear = new Date().getFullYear();
-      const contentPrompt = `Topic: "${topicInput}". Year: ${currentYear}. Primary Keyword: "${primaryKeyword}". Competitor Gap Message: "${gapInfo?.message || ''}". Exploit Keywords: ${exploitKeywords.join(', ')}. CRITICAL: Automatically detect the input language of topic/keyword and output EVERYTHING 100% in THAT SAME LANGUAGE.`;
-      
-      let finalTitle = gapInfo?.suggestedTitle || '';
-      
-      const generatedContent = await gemini.generatePlatformContent(combinedTags.slice(0, 5), selectedPlatform, topicInput);
-      if (!finalTitle) {
-        finalTitle = generatedContent.title || `${topicInput} ${currentYear}`;
-      }
+      const harmonizedData = await gemini.generateHarmonizedYouTubeMetadata(
+        topicInput,
+        primaryKeyword,
+        exploitKeywords,
+        selectedPlatform,
+        selectedCountry
+      );
 
-      // Generate rich 2-3 paragraph SEO description
-      let finalDescription = await gemini.generateExpandedSeoDescription(topicInput, primaryKeyword, exploitKeywords, currentYear);
-      if (!finalDescription || finalDescription.length < 50) {
-        finalDescription = generatedContent.description || `${topicInput} (${currentYear}) - ${primaryKeyword}`;
-      }
+      const finalTitle = harmonizedData.title || `${primaryKeyword} : ${topicInput} (${new Date().getFullYear()})`;
+      const finalDescription = harmonizedData.description || `${topicInput} - ${primaryKeyword}`;
+      const finalTags = harmonizedData.tags && harmonizedData.tags.length > 0 ? harmonizedData.tags : combinedTags;
 
       // ----------------------------------------------------
       // Step 5: High-CTR Thumbnail Generation (Contextually Bound Prompt & Hook)
@@ -197,7 +193,7 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
         bestPublishTime,
         finalTitle,
         finalDescription,
-        finalTags: combinedTags,
+        finalTags,
         thumbnailHookText: shortHookText,
         thumbnailUrl,
         timestamp: new Date().toLocaleTimeString(isRtl ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })
@@ -446,11 +442,16 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
             <div className="lg:col-span-7 space-y-6">
               {/* 1. Target Magnetic Title */}
               <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-gray-100 space-y-3 relative group">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-black text-blue-600 uppercase tracking-wider flex items-center gap-2">
-                    <span>📌</span>
-                    <span>{isRtl ? '1. العنوان الاستهدافي الجذاب (High-CTR Title)' : '1. Targeted Magnetic Title'}</span>
-                  </span>
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>📌</span>
+                      <span>{isRtl ? '1. العنوان الاستهدافي المزدوج (Long-Tail Master Title)' : '1. Dual-Targeted Long-Tail Title'}</span>
+                    </span>
+                    <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-md border border-blue-200/60">
+                      {isRtl ? 'كلمة عامة + موضوع خاص' : 'Broad Keyword + Specific Topic'}
+                    </span>
+                  </div>
 
                   <button
                     onClick={() => handleCopy(result.finalTitle, 'title')}
@@ -463,6 +464,11 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
                 <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 text-gray-900 font-black text-base md:text-lg leading-snug">
                   {result.finalTitle}
                 </div>
+                <p className="text-[11px] text-gray-400 font-bold">
+                  {isRtl
+                    ? '🎯 مدمج بدقة: يبدأ بالكلمة المفتاحية ذات البحث العالي يليه فكرة وموضوع الفيديو المخصص لجذب نية المشاهد بدقة.'
+                    : '🎯 Synchronized: Starts with high-volume search term followed by your exact custom video topic to capture targeted viewer intent.'}
+                </p>
               </div>
 
               {/* 2. SEO Optimized Description */}
@@ -488,25 +494,42 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
 
               {/* 3. Tags & Keywords */}
               <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-gray-100 space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-black text-emerald-600 uppercase tracking-wider flex items-center gap-2">
-                    <span>🏷️</span>
-                    <span>{isRtl ? '3. الوسوم والكلمات المفتاحية المجمعة' : '3. Aggregated High-Converting Tags'}</span>
-                  </span>
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🏷️</span>
+                      <span>{isRtl ? '3. العلامات والوسوم مرتبة حسب خوارزمية يوتيوب' : '3. Algorithmic Sequenced Tags'}</span>
+                    </span>
+                    <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-2 py-0.5 rounded-md border border-emerald-200/60">
+                      {isRtl ? 'مثلث السيو (Triangulated)' : 'Metadata Triangulated'}
+                    </span>
+                  </div>
 
                   <button
                     onClick={() => handleCopy(result.finalTags.join(', '), 'tags')}
                     className="text-xs font-bold bg-gray-100 hover:bg-emerald-50 hover:text-emerald-600 text-gray-700 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
                   >
-                    {copiedField === 'tags' ? (isRtl ? '✓ تم النسخ' : '✓ Copied') : (isRtl ? 'نسخ جميع الوسوم' : 'Copy All Tags')}
+                    {copiedField === 'tags' ? (isRtl ? '✓ تم النسخ' : '✓ Copied') : (isRtl ? 'نسخ جميع الوسوم (جاهزة لـ YouTube Studio)' : 'Copy All Tags')}
                   </button>
+                </div>
+
+                <div className="bg-emerald-50/40 p-3 rounded-xl border border-emerald-100 text-[11px] text-emerald-800 font-bold">
+                  {isRtl
+                    ? '✨ ترتيب خوارزمي دقيق: تبدأ بالعنوان الحرفي وموضوع الفيديو الدقيق، تليها الكلمة العامة، ثم فروع الوصف والفصول ليفهم يوتيوب تصنيف الفيديو بدقة ويقترحه للجمهور المستهدف.'
+                    : '✨ Strict Algorithm Hierarchy: Starts with exact title/topic, followed by core keywords, description sub-topics, and viewer queries.'}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   {result.finalTags.map((tag, idx) => (
                     <span
                       key={idx}
-                      className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl font-bold text-xs"
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs border ${
+                        idx < 2
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                          : idx < 6
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      }`}
                     >
                       #{tag}
                     </span>
