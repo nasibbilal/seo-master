@@ -215,7 +215,7 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
                 <div className="bg-white/10 backdrop-blur-xl p-10 rounded-[3rem] border border-white/20 shadow-inner group hover:bg-white/20 transition-all">
                   <div className="flex justify-between items-center mb-6">
                     <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">{lang === 'ar' ? 'العنوان المتفوق ✍️' : 'Superior Title ✍️'}</span>
@@ -243,6 +243,34 @@ const CompetitorTab: React.FC<{ theme: ThemeColor }> = ({ theme }) => {
                   </div>
                   <p className="text-xs md:text-sm font-bold text-red-50 leading-loose opacity-80">
                     {results[0]?.counterAttack?.description || (lang === 'ar' ? "جاري كتابة وصف استراتيجي يجيب على تساؤلات الجمهور..." : "Writing strategic description answering audience questions...")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Competitor Script Generation Section */}
+              <div className="bg-slate-900/40 backdrop-blur-2xl p-8 md:p-12 rounded-[3rem] border border-white/10 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 blur-[80px] rounded-full group-hover:bg-red-500/20 transition-colors"></div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 relative z-10">
+                  <div>
+                    <h4 className="text-xl md:text-2xl font-black text-white flex items-center gap-3">
+                      <span>📜</span> {lang === 'ar' ? 'سكريبت الفيديو (مُستخرج من الفجوات)' : 'Video Script (Extracted from Gaps)'}
+                    </h4>
+                    <p className="text-sm font-bold text-red-200 mt-2 max-w-2xl">
+                      {lang === 'ar' 
+                        ? 'هذا السكريبت مصمم ليقترح فيديو خاص بك بجانب فيديو المنافس ويتفوق عليه بالبحث، معتمداً على كلماته المفتاحية والثغرات التي غفل عنها.' 
+                        : 'This script is designed to recommend your video alongside the competitor\'s and outrank it by leveraging their keywords and content gaps.'}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => handleCopy(results[0]?.competitorScript || "", 'atkscript')}
+                    className={`shrink-0 text-xs px-6 py-3 rounded-2xl font-black transition-all cursor-pointer shadow-lg ${copied === 'atkscript' ? 'bg-green-500 text-white shadow-green-500/20' : 'bg-white text-red-700 hover:bg-red-50 shadow-white/10'}`}
+                  >
+                    {copied === 'atkscript' ? (lang === 'ar' ? '✓ تم نسخ السكريبت' : '✓ Script Copied') : (lang === 'ar' ? '📋 نسخ السكريبت' : '📋 Copy Script')}
+                  </button>
+                </div>
+                <div className="relative z-10 bg-black/30 p-6 md:p-8 rounded-3xl border border-white/5">
+                  <p className="text-sm md:text-base font-bold text-gray-200 leading-loose whitespace-pre-wrap">
+                    {results[0]?.competitorScript || (lang === 'ar' ? "جاري صياغة السكريبت التنافسي الذكي..." : "Drafting smart competitive script...")}
                   </p>
                 </div>
               </div>

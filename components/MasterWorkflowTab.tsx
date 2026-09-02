@@ -119,7 +119,7 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
       setStepStatus(isRtl ? 'جاري تحليل المنافسين واستخراج فجوات المحتوى...' : 'Analyzing competitors & content gaps...');
 
       const competitorTags = await gemini.generateTags(primaryKeyword, selectedPlatform, selectedCountry);
-      const gapInfo = await gemini.checkContentGap(primaryKeyword);
+      const gapInfo = await gemini.checkContentGap(primaryKeyword, lang);
 
       const exploitKeywords = gapInfo?.exploitKeywords || [];
       const combinedTags = Array.from(new Set([...competitorTags, ...exploitKeywords, primaryKeyword])).slice(0, 20);

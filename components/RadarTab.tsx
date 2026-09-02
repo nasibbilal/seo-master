@@ -24,11 +24,11 @@ const RadarTab: React.FC<{ theme: ThemeColor; daysCount: number; onTrendDetected
     setGapAnalysis(null);
     setStrategyResult({});
     try {
-      const data = await gemini.fetchRadarTrends(selectedCategory, selectedCountry, daysCount, selectedPlatform);
+      const data = await gemini.fetchRadarTrends(selectedCategory, selectedCountry, daysCount, selectedPlatform, lang);
       setInsights(data || []);
       if (data && data.length > 0) {
         const topTrend = data[0];
-        const gap = await gemini.checkContentGap(topTrend.title);
+        const gap = await gemini.checkContentGap(topTrend.title, lang);
         setGapAnalysis(gap);
         if (gap.isGap && onTrendDetected) onTrendDetected(topTrend.title);
       }
@@ -88,7 +88,15 @@ const RadarTab: React.FC<{ theme: ThemeColor; daysCount: number; onTrendDetected
           <div>
             <label className="text-[9px] font-black text-gray-400 mb-1.5 block uppercase tracking-widest">{t('radar.category')}</label>
             <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full px-5 py-3.5 rounded-xl bg-gray-50 border border-gray-100 font-bold outline-none cursor-pointer focus:border-blue-500 transition-all text-sm">
-              {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {lang === 'en' ? c.id.toUpperCase() : c.name}</option>)}
+              {CATEGORIES.map(c => {
+                let displayName = c.name;
+                if (lang === 'en') {
+                  displayName = c.id === 'education' ? 'MAKE MONEY ONLINE' : c.id.toUpperCase();
+                } else if (c.id === 'education') {
+                  displayName = 'تعليم (الربح من الانترنت)';
+                }
+                return <option key={c.id} value={c.id}>{c.icon} {displayName}</option>;
+              })}
             </select>
           </div>
           <div>
@@ -122,8 +130,8 @@ const RadarTab: React.FC<{ theme: ThemeColor; daysCount: number; onTrendDetected
               <table className={`w-full ${isRtl ? 'text-right' : 'text-left'} border-collapse min-w-[500px]`}>
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase">{lang === 'ar' ? 'الكلمة / المنصة' : 'Keyword / Platform'}</th>
-                    <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase text-center">{lang === 'ar' ? 'الطلب' : 'Demand'}</th>
+                    <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase">{lang === 'ar' ? 'الموضوع / الفيديو (مباشر)' : 'Topic / Video (Live)'}</th>
+                    <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase text-center">{lang === 'ar' ? 'حالة الطلب' : 'Demand Status'}</th>
                     <th className="px-6 py-4 font-black text-[10px] text-gray-400 uppercase text-center">{lang === 'ar' ? 'الإجراء' : 'Action'}</th>
                   </tr>
                 </thead>
@@ -132,20 +140,46 @@ const RadarTab: React.FC<{ theme: ThemeColor; daysCount: number; onTrendDetected
                     const platInfo = platformOptions.find(p => p.id === ins.platform);
                     return (
                       <React.Fragment key={ins.id}>
-                        <tr className="border-b border-gray-50 hover:bg-gray-50/30">
+                        <tr className="border-b border-gray-50 hover:bg-gray-50/30 transition-colors">
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] bg-gray-100 px-2 py-1 rounded-lg font-black">{platInfo?.icon || '🌐'}</span>
-                              <span className="font-black text-gray-900 text-sm">{ins.title}</span>
+                            <div className="flex items-start gap-3">
+                              <span className="text-[10px] bg-gray-100 px-2 py-1 rounded-lg font-black mt-1">{platInfo?.icon || '🌐'}</span>
+                              <div className="flex flex-col">
+                                {ins.videoUrl ? (
+                                  <a href={ins.videoUrl} target="_blank" rel="noopener noreferrer" className="font-black text-gray-900 text-sm hover:text-blue-600 transition-colors line-clamp-2">
+                                    {ins.title}
+                                  </a>
+                                ) : (
+                                  <span className="font-black text-gray-900 text-sm">{ins.title}</span>
+                                )}
+                                
+                                {ins.views !== undefined && ins.subs !== undefined && (
+                                  <div className="flex items-center gap-2 mt-2 text-[10px] font-bold text-gray-500 flex-wrap">
+                                    <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100">
+                                      👁️ {ins.views >= 1000000 ? (ins.views / 1000000).toFixed(1) + 'M' : ins.views >= 1000 ? (ins.views / 1000).toFixed(1) + 'K' : ins.views} {lang === 'ar' ? 'مشاهدة' : 'Views'}
+                                    </span>
+                                    <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
+                                      👥 {ins.subs >= 1000000 ? (ins.subs / 1000000).toFixed(1) + 'M' : ins.subs >= 1000 ? (ins.subs / 1000).toFixed(1) + 'K' : ins.subs} {lang === 'ar' ? 'مشترك' : 'Subs'}
+                                    </span>
+                                    {ins.outlierScore !== undefined && (
+                                      <span className={`px-2 py-0.5 rounded border ${ins.outlierScore > 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                                        🚀 {lang === 'ar' ? 'قوة الانتشار:' : 'Viral Score:'} {ins.outlierScore.toFixed(2)}x
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg font-black text-[9px] border border-blue-100">{ins.searchVolume || 'N/A'}</span>
+                          <td className="px-6 py-4 text-center align-middle">
+                            <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg font-black text-[9px] border border-blue-100 whitespace-nowrap">
+                              {ins.searchVolume || 'N/A'}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-6 py-4 text-center align-middle">
                             <button 
                               onClick={() => handleGen(ins)} 
-                              className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black hover:bg-black transition-all shadow-md cursor-pointer"
+                              className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black hover:bg-black transition-all shadow-md cursor-pointer whitespace-nowrap"
                             >
                               {genId === ins.id ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : (lang === 'ar' ? 'توليد خطة' : 'Generate Plan')}
                             </button>

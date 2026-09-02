@@ -19,7 +19,13 @@ const gemini = new GeminiService();
 
 const App: React.FC = () => {
   const { lang, toggleLang, t, dir } = useLanguage();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('isLoggedIn') === 'true');
+
+  const handleLogin = () => {
+    localStorage.setItem('isLoggedIn', 'true');
+    setIsLoggedIn(true);
+  };
+
   const [activeTab, setActiveTab] = useState('keywords');
   const [theme] = useState<ThemeColor>('red');
   const [daysCount, setDaysCount] = useState(30);
@@ -128,25 +134,11 @@ const App: React.FC = () => {
     setPreviewLogo(null);
   };
 
-  const renderContent = () => {
-    const props = { theme, daysCount, activeChannelId };
-    switch (activeTab) {
-      case 'keywords': return <KeywordTab {...props} />;
-      case 'workflow': return <MasterWorkflowTab theme={theme} daysCount={daysCount} activeChannelId={activeChannelId} />;
-      case 'radar': return <RadarTab {...props} onTrendDetected={() => {}} />;
-      case 'settings': return <SettingsTab theme={theme} activeChannelId={activeChannelId} />;
-      case 'tags': return <TagTab {...props} />;
-      case 'thumbnail': return <ThumbnailTab theme={theme} />;
-      case 'audience': return <AudienceTab {...props} />;
-      case 'competitors': return <CompetitorTab theme={theme} />;
-      case 'privacy': return <PrivacyPolicy theme={theme} />;
-      default: return <KeywordTab {...props} />;
-    }
-  };
-
-  if (!isLoggedIn) return <AuthGate onLogin={() => setIsLoggedIn(true)} />;
+  if (!isLoggedIn) return <AuthGate onLogin={handleLogin} />;
 
   const isRtl = dir === 'rtl';
+
+  const props = { theme, daysCount, activeChannelId };
 
   return (
     <div className={`min-h-screen bg-gray-50 flex ${isRtl ? 'flex-col md:flex-row-reverse' : 'flex-col md:flex-row'} font-cairo overflow-x-hidden`} dir={dir}>
@@ -398,7 +390,17 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="animate-in fade-in duration-700">{renderContent()}</div>
+        <div className="animate-in fade-in duration-700">
+          <div className={activeTab === 'keywords' ? 'block' : 'hidden'}><KeywordTab {...props} /></div>
+          <div className={activeTab === 'workflow' ? 'block' : 'hidden'}><MasterWorkflowTab theme={theme} daysCount={daysCount} activeChannelId={activeChannelId} /></div>
+          <div className={activeTab === 'radar' ? 'block' : 'hidden'}><RadarTab {...props} onTrendDetected={() => {}} /></div>
+          <div className={activeTab === 'settings' ? 'block' : 'hidden'}><SettingsTab theme={theme} activeChannelId={activeChannelId} /></div>
+          <div className={activeTab === 'tags' ? 'block' : 'hidden'}><TagTab {...props} /></div>
+          <div className={activeTab === 'thumbnail' ? 'block' : 'hidden'}><ThumbnailTab theme={theme} /></div>
+          <div className={activeTab === 'audience' ? 'block' : 'hidden'}><AudienceTab {...props} /></div>
+          <div className={activeTab === 'competitors' ? 'block' : 'hidden'}><CompetitorTab theme={theme} /></div>
+          <div className={activeTab === 'privacy' ? 'block' : 'hidden'}><PrivacyPolicy theme={theme} /></div>
+        </div>
       </main>
     </div>
   );

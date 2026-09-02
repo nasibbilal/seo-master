@@ -75,6 +75,10 @@ export interface RadarInsight {
   thumbnail?: string;
   searchVolume?: string; // مضاف حديثاً
   audienceSize?: string; // مضاف حديثاً
+  videoUrl?: string; // مضاف حديثاً للفيديو الفعلي
+  views?: number; // مشاهدات حقيقية
+  subs?: number; // عدد المشتركين
+  outlierScore?: number; // نسبة المشاهدات للمشتركين
 }
 
 export interface SwotAnalysis {
@@ -163,6 +167,7 @@ export interface EnhancedCompetitorData extends CompetitorData {
   algoReason?: string;
   audienceQuestions?: string[];
   counterAttack?: CounterAttackPlan;
+  competitorScript?: string;
 }
 
 export interface GapAnalysis {
