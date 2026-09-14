@@ -367,7 +367,6 @@ export class GeminiService {
 
             // 4. Outlier Analysis
             const now = Date.now();
-            const tagScores: Record<string, { score: number, views: number, count: number }> = {};
             let outlierContext = "Top Competitors Analysis (Outlier Strategy):\n";
 
             videoData.items?.forEach((vid: any) => {
@@ -379,49 +378,11 @@ export class GeminiService {
               const viewSubRatio = views / Math.max(subs, 1);
               const outlierScore = viewSubRatio / daysOld;
 
-              outlierContext += `- Title: "${vid.snippet.title}", Views: ${views}, Subs: ${subs}, Age: ${Math.round(daysOld)} days, OutlierScore: ${outlierScore.toFixed(2)}, Tags: ${(vid.snippet.tags || []).slice(0, 5).join(', ')}\n`;
-
-              const tags = vid.snippet.tags || [];
-              tags.forEach((tag: string) => {
-                const t = tag.toLowerCase().trim();
-                if (!t) return;
-                if (!tagScores[t]) tagScores[t] = { score: 0, views: 0, count: 0 };
-                tagScores[t].score += outlierScore;
-                tagScores[t].views += views;
-                tagScores[t].count += 1;
-              });
+              outlierContext += `- Title: "${vid.snippet.title}", Views: ${views}, Subs: ${subs}, Age: ${Math.round(daysOld)} days, OutlierScore: ${outlierScore.toFixed(2)}, Tags: ${(vid.snippet.tags || []).slice(0, 10).join(', ')}\n`;
             });
 
-            // 5. Format Tags
-            const sortedTags = Object.keys(tagScores)
-              .map(t => ({ tag: t, ...tagScores[t] }))
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 15);
-
-            const maxScore = Math.max(...sortedTags.map(t => t.score), 1);
-
-            let keywords: KeywordMetric[] = sortedTags.map(t => {
-              const strength = Math.min(Math.round((t.score / maxScore) * 100), 100);
-              const competition = Math.max(100 - strength, 10);
-              const formatNumber = (num: number) => {
-                if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-                return num.toString();
-              };
-              return {
-                keyword: t.tag,
-                searchVolume: formatNumber(t.views),
-                competition,
-                strength,
-                trend: 'up'
-              };
-            });
-
-            if (keywords.length === 0) {
-              keywords = await this.getGeminiKeywordsFallback(query, platform, country);
-            }
-
-            // 6. Generate Title & Desc using Gemini based strictly on detected input language
+            // 5. Synthesize Tags & Metadata using Gemini (Language enforced & Filtered)
+            let keywords: KeywordMetric[] = [];
             let suggestedTitle = "";
             let suggestedDesc = "";
             try {
@@ -432,20 +393,28 @@ Outlier competitor data:\n${outlierContext}
 
 STRICT CONTEXT LOCK (MANDATORY):
 1. ALL generated data MUST explicitly and directly relate exclusively to the exact input topic "${query}".
-2. Do NOT generate generic, unrelated, or foreign seed keywords under any circumstances. You must extract actual specific long-tail keywords.
+2. Filter the raw tags from the competitor data. Keep ONLY the highly relevant, long-tail keywords that perfectly match the topic. Discard any generic, spammy, or unrelated tags (e.g. "viral", "foryou", unrelated words).
+3. Extract exactly 10-15 high-quality keywords from the data. If the data lacks good keywords, generate highly relevant ones.
+4. Assign realistic estimated metrics (searchVolume like "1.2M" or "500K", competition 10-100, strength 10-100) based on the competitor views and outlier scores.
 
 STRICT LANGUAGE OUTPUT MATCHING (MANDATORY):
-1. Detect the exact language of "${query}" (${detectedLang}).
-2. Generate suggestedTitle and suggestedDesc strictly 100% in ${detectedLang}. No foreign keywords or mixed languages.
+1. Input query language is: ${detectedLang}.
+2. ALL output (keywords, title, description) MUST be strictly 100% in ${detectedLang}. Translate any foreign tags to ${detectedLang}. No mixed languages.
 
 FORMATTING RULES:
-1. Title format MUST be exactly: [General Keyword related to topic] + [Specific Keyword about the topic].
+1. Title format MUST be exactly: [High Volume General Keyword] | [Highly Specific Niche Hook/Angle outranking competitors]. Do NOT simply repeat the exact user input twice. Avoid redundancy.
 2. Description format MUST follow the exact YouTube algorithm preference:
    - First 2 lines: A strong hook utilizing the extracted high-volume keywords.
    - Video Chapters (Timestamps): E.g., 0:00 Intro, etc.
    - Links Section: Placeholder for social media and product links.
    - Hashtags: 3-5 highly relevant hashtags at the bottom.
-Return ONLY a valid JSON: {"title": "...", "description": "..."}`;
+
+Return ONLY a valid JSON: 
+{
+  "keywords": [{"keyword": "...", "searchVolume": "...", "competition": 45, "strength": 90, "trend": "up"}],
+  "title": "...", 
+  "description": "..."
+}`;
               
               const aiRes = await ai.models.generateContent({
                 model: "gemini-3.8-flash",
@@ -453,10 +422,15 @@ Return ONLY a valid JSON: {"title": "...", "description": "..."}`;
                 contents: prompt
               });
               const parsedAI = JSON.parse(aiRes.text || "{}");
+              keywords = parsedAI.keywords || [];
               suggestedTitle = parsedAI.title || "";
               suggestedDesc = parsedAI.description || "";
             } catch(e) {
               console.error("AI Generation failed during outlier strategy", e);
+            }
+
+            if (keywords.length === 0) {
+              keywords = await this.getGeminiKeywordsFallback(query, platform, country);
             }
 
             const result = {
@@ -736,11 +710,12 @@ STRICT LANGUAGE OUTPUT MATCHING (MANDATORY):
 CORE TASK: GENERATE PERFECTLY HARMONIZED METADATA (Title, Description, Tags) SO THE YOUTUBE ALGORITHM ACCURATELY INDEXES THE EXACT TARGET AUDIENCE.
 
 1. LONG-TAIL TITLE STRATEGY (CRITICAL):
-   - You MUST combine the high-search general keyword with the user's specific detailed topic into a single magnetic title.
-   - FORMULA: [High Search / Low-Competition Broad Keyword] : [Specific User Video Topic / Idea as provided by user] (${currentYear})
-   - Rule: NEVER omit the specific video topic "${topic}". The broad keyword gives search volume, while the user's specific topic captures the exact buyer/viewer intent.
-   - Example (Arabic): إذا كان الموضوع "طريقة عمل قهوة إسبريسو بالمنزل بدون ماكينة" والكلمة "صنع القهوة" -> العنوان: صنع القهوة : طريقة عمل قهوة إسبريسو بالمنزل بدون ماكينة خطوة بخطوة 2026
-   - Example (English): If topic is "Build an ecommerce store with zero budget" and keyword is "Dropshipping for Beginners" -> Title: Dropshipping for Beginners : How to Build an Ecommerce Store with Zero Budget in 2026
+   - You MUST generate exactly ONE single, highly-optimized magnetic title.
+   - DO NOT repeat the exact user input. DO NOT duplicate words. DO NOT use formulas like "Keyword : Keyword".
+   - Your goal is to integrate a High-Volume/Low-Competition Keyword with a powerful "Curiosity Hook" (Gap analysis) so the video ranks in search AND appears in suggested videos of competitors.
+   - Rule: The title MUST sound 100% natural and conversational, yet packed with SEO power.
+   - Example (Arabic): "كيف بدأت التجارة الإلكترونية من الصفر وحققت أول 1000 دولار (خطوة بخطوة 2026)"
+   - Example (English): "How I Started Dropshipping with $0 and Made My First $10k (2026)"
 
 2. ALGORITHM-FRIENDLY DESCRIPTION STRUCTURE:
    You MUST format the output description with the following precise 4-part structure, and you MUST USE this exact visual layout template:
@@ -804,10 +779,11 @@ Return ONLY a valid JSON object matching the schema.`
       NEVER mix languages under any circumstances.
 
       LONG-TAIL TITLE STRATEGY (CRITICAL):
-      Formulate the title strictly using the high-converting Long-Tail formula:
-      [High Search / Low-Competition Keyword] : [Specific Detailed Topic of the Video]
-      Example (Arabic): تجارة إلكترونية للمبتدئين : الدليل الشامل لإنشاء متجر مربح في 2026
-      Example (English): Ecommerce for Beginners : Complete Step-by-Step Guide to Build a Profitable Store in 2026
+      Generate ONE single, natural-sounding, highly-optimized magnetic title.
+      Rule 1: NEVER repeat the topic twice. Integrate the best keywords naturally.
+      Rule 2: Use a strong competitive hook to rank in suggested videos.
+      Example (Arabic): "الدليل الشامل لاحتراف التجارة الإلكترونية من الصفر في 2026"
+      Example (English): "The Ultimate Zero-Budget Dropshipping Guide for 2026"
 
       ALGORITHM-FRIENDLY DESCRIPTION STRATEGY:
       The 'description' field MUST follow this exact visual layout format:
@@ -998,6 +974,11 @@ Return ONLY the raw prompt string, with no quotes or extra preamble.`
             // 4. Outlier Analysis for Tags
             const now = Date.now();
             const tagScores: Record<string, { score: number, count: number }> = {};
+            
+            const detectedLang = this.detectLanguage(topic);
+            const isQueryAr = detectedLang === 'Arabic';
+            const isQueryEn = detectedLang === 'English';
+            const isQueryFr = detectedLang === 'French';
 
             videoData.items?.forEach((vid: any) => {
               const views = parseInt(vid.statistics.viewCount || '0', 10);
@@ -1012,6 +993,13 @@ Return ONLY the raw prompt string, with no quotes or extra preamble.`
               tags.forEach((tag: string) => {
                 const t = tag.toLowerCase().trim();
                 if (!t) return;
+                
+                // Strict language filtering for tags
+                const hasArabic = /[\u0600-\u06FF]/.test(t);
+                if (isQueryAr && !hasArabic) return;
+                if (isQueryEn && hasArabic) return;
+                if (isQueryFr && hasArabic) return;
+                
                 if (!tagScores[t]) tagScores[t] = { score: 0, count: 0 };
                 // Add outlier score to the tag
                 tagScores[t].score += outlierScore;
@@ -1716,7 +1704,7 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
 Provide highly relevant exploit keywords with high search volume and low competition related exclusively to this topic.
 
 FORMATTING RULES:
-1. suggestedTitle MUST be formatted exactly as: [General Keyword related to topic] + [Specific Keyword about the topic]. It must be highly optimized for click-through rate.
+1. suggestedTitle MUST be formatted exactly as: [High Volume General Keyword] | [Highly Specific Niche Hook/Angle outranking competitors]. Do NOT simply repeat the exact input. It must be highly optimized for click-through rate.
 2. suggestedDesc MUST be formatted exactly in the structure favored by the YouTube algorithm. You MUST USE this exact visual layout template:
 
 [Strong hook in 2 lines utilizing the extracted exploit keywords directly]

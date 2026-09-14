@@ -392,7 +392,7 @@ const App: React.FC = () => {
 
         <div className="animate-in fade-in duration-700">
           <div className={activeTab === 'keywords' ? 'block' : 'hidden'}><KeywordTab {...props} /></div>
-          <div className={activeTab === 'workflow' ? 'block' : 'hidden'}><MasterWorkflowTab theme={theme} daysCount={daysCount} activeChannelId={activeChannelId} /></div>
+          <div className={activeTab === 'workflow' ? 'block' : 'hidden'}><MasterWorkflowTab theme={theme} daysCount={daysCount} activeChannelId={activeChannelId} onNavigateTab={setActiveTab} /></div>
           <div className={activeTab === 'radar' ? 'block' : 'hidden'}><RadarTab {...props} onTrendDetected={() => {}} /></div>
           <div className={activeTab === 'settings' ? 'block' : 'hidden'}><SettingsTab theme={theme} activeChannelId={activeChannelId} /></div>
           <div className={activeTab === 'tags' ? 'block' : 'hidden'}><TagTab {...props} /></div>

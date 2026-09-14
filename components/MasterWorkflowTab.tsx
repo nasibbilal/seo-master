@@ -4,6 +4,7 @@ import { GeminiService } from '../services/geminiService';
 import { useLanguage } from '../context/LanguageContext';
 
 interface MasterWorkflowTabProps {
+  onNavigateTab?: (tab: string) => void;
   theme: ThemeColor;
   daysCount?: number;
   activeChannelId?: string;
@@ -27,7 +28,7 @@ export interface WorkflowResult {
 
 const gemini = new GeminiService();
 
-const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount = 30 }) => {
+const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount = 30, onNavigateTab }) => {
   const { lang, dir } = useLanguage();
   const isRtl = dir === 'rtl';
 
@@ -441,15 +442,15 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
             {/* Left Column (8 cols): Title, Description, Tags, Schedule */}
             <div className="lg:col-span-7 space-y-6">
               {/* 1. Target Magnetic Title */}
-              <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-gray-100 space-y-3 relative group">
+              <div className="bg-gradient-to-br from-white to-blue-50/30 p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-lg border-2 border-blue-100 space-y-4 relative group">
                 <div className="flex flex-wrap justify-between items-center gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>📌</span>
-                      <span>{isRtl ? '1. العنوان الاستهدافي المزدوج (Long-Tail Master Title)' : '1. Dual-Targeted Long-Tail Title'}</span>
+                      <span>🎯</span>
+                      <span>{isRtl ? '1. العنوان الاستهدافي الأقوى (Optimized Master Title)' : '1. Optimized Master Title'}</span>
                     </span>
                     <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-md border border-blue-200/60">
-                      {isRtl ? 'كلمة عامة + موضوع خاص' : 'Broad Keyword + Specific Topic'}
+                      {isRtl ? 'كلمات عالية البحث + خطاف منافسين' : 'High Volume + Competitor Hook'}
                     </span>
                   </div>
 
@@ -461,7 +462,7 @@ const MasterWorkflowTab: React.FC<MasterWorkflowTabProps> = ({ theme, daysCount 
                   </button>
                 </div>
 
-                <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 text-gray-900 font-black text-base md:text-lg leading-snug">
+                <div className="bg-white p-4 md:p-5 rounded-2xl border-2 border-blue-100 text-blue-950 font-black text-lg md:text-xl leading-snug shadow-sm">
                   {result.finalTitle}
                 </div>
                 <p className="text-[11px] text-gray-400 font-bold">
