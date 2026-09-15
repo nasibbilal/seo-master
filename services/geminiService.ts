@@ -1,5 +1,9 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+
+const isAIStudio = typeof window !== 'undefined' && window.location.hostname.includes("run.app");
+const TEXT_MODEL = isAIStudio ? "gemini-3.8-flash" : "gemini-1.5-flash";
+
 import { Platform, KeywordMetric, APIUsageStats, CompetitorData, RadarInsight, ThumbnailEvaluation, AudienceInsight, ChannelMetadata, CommentGapInsight, VideoAuditResult, EnhancedCompetitorData, GapAnalysis } from "../types";
 
 export class GeminiService {
@@ -252,7 +256,7 @@ export class GeminiService {
       const prompt = `Find the high-resolution official avatar image URL for the ${platform} channel: "${identifier}". Return ONLY the raw URL link. No quotes, no markdown.`;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: TEXT_MODEL,
         contents: prompt,
         config: { tools: [{ googleSearch: {} }] }
       });
@@ -280,7 +284,7 @@ export class GeminiService {
       return await this.callWithRetry(async () => {
         // Just do a simple request to see if the key works
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: TEXT_MODEL,
           contents: `Reply ONLY with the word OK.`
         });
         return { success: true };
@@ -417,7 +421,7 @@ Return ONLY a valid JSON:
 }`;
               
               const aiRes = await ai.models.generateContent({
-                model: "gemini-3.8-flash",
+                model: TEXT_MODEL,
                 config: { responseMimeType: "application/json" },
                 contents: prompt
               });
@@ -457,7 +461,7 @@ Return ONLY a valid JSON:
             const liveSnippets = gData.items.map((i: any) => i.title).join(', ');
             const ai = this.getAI();
             const aiRes = await ai.models.generateContent({
-              model: "gemini-3.8-flash",
+              model: TEXT_MODEL,
               config: { responseMimeType: "application/json" },
               contents: `Live Google Search results for "${query}": ${liveSnippets}.
 STRICT LANGUAGE LOCK: Input language is "${detectedLang}". Extract 10 high-intent search keywords strictly in ${detectedLang}. Return array of KeywordMetric.`
@@ -486,7 +490,7 @@ STRICT LANGUAGE LOCK: Input language is "${detectedLang}". Extract 10 high-inten
     const ai = this.getAI();
     const currentYear = new Date().getFullYear();
     const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
+      model: TEXT_MODEL,
       config: { 
         responseMimeType: "application/json", 
         responseSchema: {
@@ -625,7 +629,7 @@ STRICT INPUT-DRIVEN LANGUAGE MATCHING (MANDATORY):
       // Fallback for other platforms or if YouTube fetch failed
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: { 
           responseMimeType: "application/json",
           responseSchema: {
@@ -673,7 +677,7 @@ STRICT INPUT-DRIVEN LANGUAGE MATCHING (MANDATORY):
       const ai = this.getAI();
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -803,7 +807,7 @@ Return ONLY a valid JSON object matching the schema.`
       Return JSON object with 'title' and 'description' keys.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: { 
           responseMimeType: "application/json",
           systemInstruction: systemInstruction 
@@ -834,7 +838,7 @@ Return ONLY a valid JSON object matching the schema.`
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         contents: `You are an elite YouTube and multi-platform SEO copywriter for ${currentYear}.
 
 STRICT CONTEXT LOCK (MANDATORY):
@@ -884,7 +888,7 @@ Return ONLY the complete, beautifully structured SEO description 100% in the det
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         contents: `You are a High-CTR thumbnail copywriter.
 
 STRICT LANGUAGE LOCKING RULE (MANDATORY):
@@ -913,7 +917,7 @@ Return ONLY the 3-5 word hook text in the detected input language without quotes
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         contents: `You are an expert YouTube thumbnail visual art director.
 Topic: "${topic}" (Primary Keyword: "${primaryKeyword}").
 Text Overlay Hook: "${hookText}".
@@ -1027,7 +1031,7 @@ Return ONLY the raw prompt string, with no quotes or extra preamble.`
       // Fallback or Non-YouTube platforms (Gemini Estimation)
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: { responseMimeType: "application/json" },
         contents: `Provide 20 high-converting, highly accurate viral tags for topic "${topic}" on ${platform} in ${country} as a JSON string array.
 
@@ -1051,7 +1055,7 @@ STRICT LANGUAGE OUTPUT MATCHING (MANDATORY):
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         contents: `Rewrite and enhance this thumbnail text for maximum impact: "${text}". Context topic: "${context}". Catchy style: ${catchy}.
 STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "${context}". The enhanced text MUST be 100% in THAT SAME DETECTED LANGUAGE. Return ONLY the enhanced text.`
       });
@@ -1067,7 +1071,7 @@ STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "
       if (referenceImage) {
         try {
           const visionRes = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
+            model: TEXT_MODEL,
             contents: { parts: [
               { inlineData: { mimeType: referenceImage.split(';')[0].split(':')[1], data: referenceImage.split(',')[1] } },
               { text: "Describe this image in precise detail (subject, pose, clothing, colors, background). I will use this to generate a matching YouTube thumbnail." }
@@ -1080,18 +1084,29 @@ STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "
         }
       }
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: finalPrompt,
-        config: { imageConfig: { aspectRatio: (size as any) || "16:9" } }
-      });
-
-      if (response.candidates?.[0].content.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+      if (isAIStudio) {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: finalPrompt,
+          config: { imageConfig: { aspectRatio: (size as any) || "16:9" } }
+        });
+        if (response.candidates?.[0]?.content?.parts) {
+          for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+          }
         }
+        return "";
+      } else {
+        const response = await ai.models.generateImages({
+          model: 'imagen-3.0-generate-001',
+          prompt: finalPrompt,
+          config: { aspectRatio: (size as any) || "16:9", outputMimeType: "image/png" }
+        });
+        if (response.generatedImages?.[0]?.image?.imageBytes) {
+          return `data:image/png;base64,${response.generatedImages[0].image.imageBytes}`;
+        }
+        return "";
       }
-      return "";
     });
   }
 
@@ -1100,7 +1115,7 @@ STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "
       const ai = this.getAI();
       const base64Data = imageUrl.split(',')[1];
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         contents: { parts: [{ inlineData: { mimeType: 'image/png', data: base64Data } }, { text: `Evaluate this thumbnail CTR potential. Prompt: ${prompt}. Return JSON.` }] },
         config: { responseMimeType: "application/json" }
       });
@@ -1261,7 +1276,7 @@ STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "
 
             const ai = this.getAI();
             const response = await ai.models.generateContent({
-              model: "gemini-3.8-flash",
+              model: TEXT_MODEL,
               config: { responseMimeType: "application/json" },
               contents: prompt
             });
@@ -1298,7 +1313,7 @@ STRICT LANGUAGE LOCKING RULE: Automatically detect the language of "${text}" / "
       // Fallback or Non-YouTube platforms (Gemini Estimation)
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: { 
           responseMimeType: "application/json"
         },
@@ -1323,7 +1338,7 @@ Schema: {"demographics": {"ageRange": "...", "interests": ["..."], "audienceSize
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: { responseMimeType: "application/json" },
         contents: `SEO Audit for video: ${videoInput}. Return JSON.`
       });
@@ -1458,7 +1473,7 @@ Schema: {"demographics": {"ageRange": "...", "interests": ["..."], "audienceSize
 
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -1681,7 +1696,7 @@ Return JSON array with 1 item containing exact EnhancedCompetitorData.`
     return this.callWithRetry(async () => {
       const ai = this.getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: TEXT_MODEL,
         config: { 
           responseMimeType: "application/json",
           responseSchema: {
@@ -1753,7 +1768,7 @@ CRITICAL DYNAMIC LANGUAGE MATCHING RULE: The application language is set to ${la
         const ai = this.getAI();
         const base64Data = imageUrl.split(',')[1];
         const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+          model: TEXT_MODEL,
           contents: { parts: [
               { inlineData: { mimeType: 'image/png', data: base64Data } }, 
               { text: `The user wants to place a logo/design based on this scene prompt: "${prompt}". Identify the exact bounding box in the image where this design should be printed (e.g., the chest of the specific character's shirt, a mug, a billboard, etc. as described). Return ONLY a valid JSON object with normalized bounding box coordinates (values between 0.0 and 1.0). Format exactly like this: {"ymin": 0.3, "xmin": 0.4, "ymax": 0.5, "xmax": 0.6}. Do not include markdown blocks, backticks, or any other text.` }
@@ -1776,7 +1791,7 @@ CRITICAL DYNAMIC LANGUAGE MATCHING RULE: The application language is set to ${la
         const ai = this.getAI();
         const base64Data = imageUrl.split(',')[1];
         const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+          model: TEXT_MODEL,
           contents: { parts: [
               { inlineData: { mimeType: 'image/png', data: base64Data } }, 
               { text: `You are an SEO E-commerce expert. Write an attractive, SEO-optimized product description for the item in this image (in Arabic). The description must include keywords that help this product rank in search results. Keep it to 1-2 strong sentences highlighting the print quality and the design subject.` }
